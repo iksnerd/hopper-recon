@@ -80,22 +80,22 @@ _(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
 - [ ] Tag v0.1.0 + GitHub release notes
 - [ ] Soft launch: r/netsec, r/AskNetsec, HN Show, projectdiscovery Discord, Anthropic/MCP-aware audiences
 
-### v0.1.0 — Kubernetes deployment package (the load-bearing piece for company adoption)
-- [ ] **Helm chart** at `deploy/helm/hopper-recon/` with sane defaults (works without overrides) + `values.production.yaml` example for HA setups
-- [ ] Helm repo published to GHCR Pages: `helm repo add hopper https://...`
-- [ ] **Kustomize overlay** at `deploy/kustomize/` (base + dev/prod overlays) — for shops that are Kustomize-only
-- [ ] **Pod Security**: `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, no privileges, no `hostPath` — passes default OPA/PSP without waiver
-- [ ] **Resource defaults**: engine `100m/200Mi` request, `1/500Mi` limit; web `50m/150Mi` request, `100m/200Mi` limit
-- [ ] **Probes**: `/healthz` (liveness) + `/readyz` (readiness) on both engine and web
-- [ ] **Persistence**: PVC for SQLite (default 5Gi, configurable), no StatefulSet (single-replica engine v0.1)
-- [ ] **NetworkPolicy template** documenting egress (subfinder OSINT providers, cert transparency, etc.) so security teams can lock it down
-- [ ] **ServiceMonitor** template for Prometheus Operator (`/metrics` endpoint on engine + web)
-- [ ] **Structured JSON logs** to stdout — Loki/Datadog/Splunk pickup with no extra config
-- [ ] **No phone-home, no telemetry** — explicitly documented; opt-in `USAGE_TELEMETRY=true` may come later, default off forever
-- [ ] **Air-gapped install guide** — how to mirror image + chart to internal registry, install offline
-- [ ] **Backup example** in chart — CronJob that snapshots SQLite to S3-compatible storage
-- [ ] **Upgrade docs** — schema migrations run automatically on container start; rolling updates work; document version-skew tolerance
-- [ ] **Optional Postgres backend** (deferred, file the issue when someone asks) — for shops that disallow SQLite-on-PVC in prod
+### v0.1.0 — Production deployment package (lean, compose-first)
+
+> Full plan: [`docs/v0.1.0-prod-deploy-plan.md`](docs/v0.1.0-prod-deploy-plan.md). Helm chart / Kustomize / NetworkPolicy / ServiceMonitor templates intentionally deferred — operators write those themselves to fit their existing infrastructure.
+
+- [ ] `Dockerfile` for the web app (Next.js standalone build, multi-arch)
+- [ ] `Dockerfile` for the engine — already exists; add `USER 1000:1000`, healthcheck, multi-arch build target
+- [ ] `/healthz` endpoint on engine (Go, ~10 LOC)
+- [ ] `/readyz` endpoint on engine (checks SQLite is reachable)
+- [ ] `/api/healthz` route on web (Next.js, ~5 LOC)
+- [ ] `/api/readyz` route on web (checks engine is reachable)
+- [ ] Reference `docker-compose.yml` at repo root (engine + web + volumes)
+- [ ] `DEPLOY.md` at repo root — env vars, ports, volumes, backup recipe, upgrade recipe, auth posture ("no built-in auth in v0.1; put behind VPN/oauth2-proxy")
+- [ ] `.github/workflows/release.yml` — on tag, build multi-arch (`linux/amd64` + `linux/arm64`) → GHCR, cosign signing, syft SBOM
+- [ ] Structured JSON logs to stdout (engine + web)
+- [ ] Verify `docker compose up` works clean from a fresh checkout
+- [ ] Helm chart, Kustomize overlays, NetworkPolicy, ServiceMonitor — _deferred; revisit at v0.2.0 once engine refactor lands and only if 5+ issues filed_
 
 ### v0.2.0 — Engine refactor (engine owns SQLite, MCP-native server)
 - [ ] **Engine: add `serve` subcommand** for long-running HTTP/MCP mode (Streamable HTTP transport from Go MCP SDK)
