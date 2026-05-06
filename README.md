@@ -55,19 +55,32 @@ API keys for subfinder (`~/.config/subfinder/provider-config.yaml`) and uncover 
 
 ### GeoLite2 setup
 
-`lookup_geoip` reads a MaxMind GeoLite2-Country database mounted into the container. It's license-restricted, so you supply it yourself:
+`lookup_geoip` reads a MaxMind GeoLite2-Country database mounted into the container. It's license-restricted, so you supply it yourself.
 
-1. Sign up for a free MaxMind account: <https://www.maxmind.com/en/geolite2/signup>
-2. After login → **Download Databases** (left sidebar) → grab `GeoLite2 Country` as **GeoIP2 Binary (.mmdb)**, not the CSV.
-3. Extract the tarball and move the `.mmdb` into place:
+**Option A — P3TERX mirror (no account needed, auto-updated)**
+
+```bash
+mkdir -p ~/.config/hopper-recon
+curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb \
+     -o ~/.config/hopper-recon/GeoLite2-Country.mmdb
+```
+
+> [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) mirrors the official MaxMind builds and auto-updates via GitHub Actions.
+
+**Option B — official MaxMind (requires free account)**
+
+1. Sign up: <https://www.maxmind.com/en/geolite2/signup>
+2. After login → **Download Databases** → `GeoLite2 Country` → **GeoIP2 Binary (.mmdb)**
+3. Extract and place:
    ```bash
    mkdir -p ~/.config/hopper-recon
    tar -xzf GeoLite2-Country_*.tar.gz
    mv GeoLite2-Country_*/GeoLite2-Country.mmdb ~/.config/hopper-recon/
    ```
-4. Verify: `ls ~/.config/hopper-recon/GeoLite2-Country.mmdb` should print the path with a non-zero size (~6 MB).
 
-The web side mounts that path into the container at scan time. If the file is missing, geoip lookups return empty results and the geo-globe simply doesn't render — everything else keeps working.
+Verify: `ls -lh ~/.config/hopper-recon/GeoLite2-Country.mmdb` — should be ~6 MB.
+
+If the file is missing, geoip lookups return empty results and the geo-globe simply doesn't render — everything else keeps working.
 
 ---
 
