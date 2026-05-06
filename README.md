@@ -1,178 +1,142 @@
-# Hopper Recon
+# hopper-recon
 
-A modern security reconnaissance platform combining a **Next.js 16 web frontend** with a **Go MCP engine** for OSINT and network discovery tasks.
+Passive security reconnaissance platform. A **Next.js 16** web frontend runs scans through a **Go MCP engine** packaged as a Docker container, results stored in SQLite (dev) or Cloudflare D1 (prod).
+
+![Terminal aesthetic — monospace, dark, no hue](https://img.shields.io/badge/UI-terminal--aesthetic-111?style=flat-square&labelColor=080808&color=444)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=next.js)
+![Docker](https://img.shields.io/badge/engine-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+
+---
+
+## Features
+
+- **Dashboard** — run all OSINT tools in parallel against a target domain, live elapsed timers, findings triage strip, tech stack detection
+- **History** — list of all scanned domains with inline stats, multi-scan timeline charts, geo-globe from IP data
+- **Domain detail** — full-page per-domain view with uncapped subdomain list, cert SAN expansion, TXT records, port exposure (uncover), per-subdomain `>_ scan` links
+- **EXPOSE tab** — powered by `uncover`, queries Shodan/Censys/FOFA for exposed IPs and open ports via `ssl:"<domain>"`
+- **Geo globe** — IP → country via ip-api.com, rendered with [cobe](https://cobe.vercel.app)
+- **Findings strip** — auto-triage: expired certs, missing SPF/DMARC, HTTPS→HTTP downgrades, sensitive subdomains
+- **Dual DB** — SQLite for local dev (auto-migrated), Cloudflare D1 for production
+
+---
 
 ## Architecture
 
 ```
 hopper-recon/
-├── web/                 # Next.js 16 frontend + SQLite local DB
-├── engine/              # Go MCP server (runs in Docker)
-├── CLAUDE.md            # Development guide
-└── schema.sql           # Database schema (D1 production)
+├── engine/          # Go MCP server — runs as Docker container
+│   ├── main.go      # Tool handlers + MCP registration
+│   └── Dockerfile
+├── web/             # Next.js 16 app
+│   ├── src/app/     # App Router pages + API routes
+│   ├── src/lib/     # db.ts · docker-mcp.ts · scan-parser.ts
+│   └── src/components/recon/   # Domain-specific UI components
+├── schema.sql       # D1 production schema
+└── CLAUDE.md        # Agent + dev guide
 ```
 
-- **Web App** (`web/`): Next.js 16 with shadcn/ui, Tailwind CSS, and better-sqlite3 for local development
-- **Engine** (`engine/`): Go MCP server wrapping OSINT tools (subfinder, dnsx, tlsx, httpx, asnmap)
-- **Communication**: Docker container running the engine, called via MCP protocol from the web app
+The web app calls the engine over MCP via `docker run --rm -i hopper-recon:latest`. Each scan is a new container instance.
 
-## Quick Start
+---
 
-### Prerequisites
+## Tools
 
-- Node.js 18+
-- Go 1.26+
-- Docker (for running the Go engine)
-- OSINT tool binaries: `subfinder`, `dnsx`, `tlsx`, `httpx`, `asnmap`
+| MCP name | Binary | What it does |
+|---|---|---|
+| `passive_subdomains` | subfinder | OSINT subdomain enumeration across 40+ sources |
+| `resolve_dns` | dnsx | A/NS/MX/TXT records, CDN detection, TTL |
+| `fetch_tls_cert` | tlsx | TLS cert details — CN, SANs, expiry, cipher |
+| `probe_http` | httpx | HTTP probe — title, tech stack, JARM, CPE, redirects |
+| `search_hosts` | uncover | Search Shodan/Censys/FOFA for exposed IPs/ports |
 
-### Setup
+API keys for subfinder (`~/.config/subfinder/provider-config.yaml`) and uncover (`~/.config/uncover/provider-config.yaml`) are volume-mounted read-only when present.
 
-1. **Clone and install**
-   ```bash
-   npm install
-   cd engine && go mod download
-   ```
+---
 
-2. **Build the Docker engine**
-   ```bash
-   cd engine && docker build -t hopper-recon:latest .
-   ```
+## Quick start
 
-3. **Start development server**
-   ```bash
-   npm run dev
-   ```
-   Web app runs on `http://localhost:3000`
+**Prerequisites**: Node.js 18+, Go 1.26+, Docker
 
-### Database
+```bash
+# 1. Install web dependencies
+cd web && npm install
 
-- **Development**: SQLite at `web/data/recon.db` (auto-created)
-- **Production**: Cloudflare D1 (configured via Wrangler)
-- **Schema**: Defined in `web/schema.sql` and `web/src/lib/db.ts`
+# 2. Build the engine image
+cd engine && docker build -t hopper-recon:latest .
 
-## Available Tools
+# 3. Start dev server
+cd web && npm run dev
+# → http://localhost:3000
+```
 
-The Go engine exposes these MCP tools to the web app:
+SQLite DB is created automatically at `web/data/recon.db` on first request.
 
-| Tool | Purpose | Input |
-|------|---------|-------|
-| **subfinder** | OSINT subdomain enumeration | Domain name |
-| **dnsx** | DNS resolution & validation | Domain/subdomain |
-| **tlsx** | TLS certificate & SAN extraction | Domain/IP |
-| **httpx** | HTTP probing & tech detection | Domain/IP |
-| **asnmap** | ASN & CIDR range mapping | Domain name |
+---
 
 ## Development
 
-### Before committing:
+### Pre-commit checklist
 
-#### Next.js (web/)
+**Web (`web/`)**
 ```bash
-npm run lint        # Fix ESLint warnings
-npx tsc --noEmit   # Type check (no @ts-ignore)
-npm run build       # Verify build
+npx tsc --noEmit    # must pass clean — no any, no @ts-ignore
+npm run lint        # fix warnings, don't disable rules
 ```
 
-#### Go (engine/)
+**Engine (`engine/`)**
 ```bash
-gofmt -w .          # Format all Go code
-go vet ./...        # Check for errors
-go build ./...      # Verify compilation
-go mod tidy         # Update dependencies
-docker build -t hopper-recon:latest .  # Rebuild container image
+go fmt ./...
+go vet ./...
+go build ./...
+go mod tidy         # after adding/removing imports
+docker build -t hopper-recon:latest .   # after Go changes
 ```
 
-### Code style
+### Adding a tool
 
-- **No Prettier config**: Match surrounding file style (indentation, quotes, commas)
-- **Type safety**: TypeScript strict mode; no `any` or `@ts-ignore`
-- **Go formatting**: Must run `gofmt` before commit
-- **Comments**: Only for non-obvious WHY, not for describing WHAT
-
-## Project Structure
-
-```
-web/
-├── src/
-│   ├── app/           # Next.js 16 App Router
-│   ├── components/    # React components (shadcn/ui)
-│   ├── lib/
-│   │   ├── db.ts      # SQLite schema & queries
-│   │   ├── docker-mcp.ts  # MCP tool definitions
-│   │   └── ...
-│   └── styles/        # Tailwind + globals
-├── data/              # SQLite DB (gitignored)
-├── public/
-├── package.json       # Dependencies
-└── tsconfig.json
-
-engine/
-├── main.go            # MCP server & tool handlers
-├── Dockerfile
-├── go.mod
-└── go.sum
-```
-
-## Making Changes
-
-### Adding a new tool
-
-1. **Implement in Go** (`engine/main.go`):
-   - Define input/output types
-   - Add handler function
-   - Register with MCP server
-
-2. **Update TypeScript** (`web/src/lib/docker-mcp.ts`):
-   - Add to `McpTool` union type
-   - Add to valid tools list in scan route
-
-3. **Rebuild**:
-   ```bash
-   cd engine && docker build -t hopper-recon:latest .
-   ```
+1. Add handler + types in `engine/main.go`, register with `mcp.AddTool`
+2. Add binary install + copy/chmod in `engine/Dockerfile`
+3. Add to `McpTool` union in `web/src/lib/docker-mcp.ts`
+4. Add to `VALID_TOOLS` (and `DOMAIN_ARG_TOOLS` if it takes `domain`) in `web/src/app/api/scan/route.ts`
+5. Add parser in `web/src/lib/scan-parser.ts`
+6. Add tab/panel in dashboard and history pages
+7. Rebuild image
 
 ### Database schema changes
 
-- Edit `web/schema.sql` (D1 production target)
-- Update inline schema in `web/src/lib/db.ts` (SQLite dev)
-- Keep both in sync
+Edit both `web/schema.sql` (D1) and the inline `db.exec` in `web/src/lib/db.ts` (SQLite) — keep them in sync.
+
+---
 
 ## Deployment
 
-### To Vercel (production)
+**Cloudflare (production)**
 
 ```bash
-npm run build
-vercel deploy --prod
+# Provision D1
+wrangler d1 create recon-db-prod
+wrangler d1 execute recon-db-prod --file=schema.sql
+
+# Deploy
+cd web && npm run build && wrangler deploy
 ```
 
-Environment variables configured via Vercel dashboard. Database uses Cloudflare D1.
+The Cloudflare Sandbox executor for running the engine in production is stubbed in `web/src/lib/executor.ts` — Docker is used for local dev.
 
-## Useful Commands
+---
 
-```bash
-# Web development
-npm run dev              # Start dev server
-npm run build            # Build for production
-npm run lint             # Lint & format check
-npx tsc --noEmit        # Type check
+## Roadmap
 
-# Go/Engine
-go doc <pkg>            # Read package docs
-go doc <pkg>.<Symbol>   # Read specific API
+See [TODO.md](./TODO.md) for the full list. Key open items:
 
-# Docker
-docker build -t hopper-recon:latest .    # Build image
-docker run --rm -it hopper-recon:latest  # Test locally
-```
+- Replace ip-api.com with bundled MaxMind GeoLite2 (offline, no rate limit)
+- Cloudflare Sandbox executor wiring for production scans
+- Auth (NextAuth — GitHub/Google OAuth), per-user scan limits
+- `uncover` batch scanning against all discovered subdomains
 
-## Resources
-
-- [CLAUDE.md](./CLAUDE.md) — Detailed development guide & conventions
-- [TODO.md](./TODO.md) — Outstanding work & issues
-- Next.js 16 docs: `web/node_modules/next/dist/docs/`
-- MCP SDK: `engine/vendor/github.com/modelcontextprotocol/go-sdk`
+---
 
 ## License
 
-Internal project
+MIT

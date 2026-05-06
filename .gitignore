@@ -1,3 +1,6 @@
+# Compiled engine binary
+engine/hopper-recon
+
 # Go binaries and artifacts
 *.exe
 *.exe~
@@ -51,6 +54,8 @@ skills-lock.json
 # Database (local dev)
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # Logs
 *.log
