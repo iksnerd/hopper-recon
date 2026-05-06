@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Panel } from "@/components/recon/panel"
 
 const CAPABILITIES = [
   { label: "SUBDOMAINS", tool: "passive_subdomains", desc: "osint enumeration via subfinder" },
@@ -11,18 +12,21 @@ export default function Home() {
   return (
     <div className="min-h-screen font-mono text-foreground scanlines flex flex-col">
       <header className="border-b border-border px-6 py-3 flex items-center justify-between">
-        <span className="text-micro uppercase text-muted-foreground">hopper-recon</span>
-        <span className="text-micro text-muted">v0.1.0-alpha</span>
+        <div className="flex items-center gap-2">
+          <span className="size-2 bg-terminal-green" aria-hidden />
+          <span className="text-micro uppercase text-foreground tracking-widest font-bold">hopper-recon</span>
+        </div>
+        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">v0.1.0-alpha</span>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-3 sm:px-6 py-8 sm:py-16">
-        <div className="w-full max-w-2xl space-y-4">
+        <div className="w-full max-w-2xl space-y-5">
 
           {/* Boot block */}
-          <div className="border border-border bg-card-inset p-4 sm:p-6">
-            <div className="text-micro text-muted-foreground-3 mb-5">{"// SYSTEM INIT"}</div>
-            <h1 className="text-3xl sm:text-5xl font-bold text-primary tracking-tight mb-4">
-              hopper-recon
+          <div className="border border-border bg-card-inset p-4 sm:p-6 relative before:absolute before:left-0 before:top-6 before:bottom-6 before:w-[2px] before:bg-terminal-green/70">
+            <div className="text-micro text-muted-foreground-3 mb-5 tracking-widest uppercase font-bold">{"// SYSTEM INIT"}</div>
+            <h1 className="text-3xl sm:text-5xl font-bold text-foreground tracking-tight mb-4">
+              hopper-recon<span className="text-terminal-green cursor-blink">_</span>
             </h1>
             <p className="text-emphasis text-muted-foreground-2 leading-relaxed max-w-md">
               agent-first attack surface reconnaissance. passive, non-invasive,
@@ -32,29 +36,26 @@ export default function Home() {
             <div className="mt-8 flex items-center gap-3">
               <Link
                 href="/dashboard"
-                className="text-emphasis text-foreground hover:text-primary hover:bg-card-hover px-5 py-2 border border-border transition-colors duration-100"
+                className="text-emphasis text-terminal-green hover:text-background hover:bg-terminal-green px-5 py-2 border border-terminal-green/40 bg-card-inset transition-colors duration-100 tracking-widest uppercase font-bold"
               >
-                &gt;_ enter dashboard
+                &gt;_ ENTER DASHBOARD
               </Link>
               <span className="text-body text-muted-foreground-3">no account required</span>
             </div>
           </div>
 
           {/* Capabilities grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 gap-px bg-secondary">
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-px bg-border border border-border">
             {CAPABILITIES.map(({ label, tool, desc }) => (
-              <div key={tool} className="bg-card p-4">
-                <div className="text-micro text-muted-foreground mb-1">{label}</div>
+              <div key={tool} className="bg-card p-4 hover:bg-card-hover transition-colors duration-100">
+                <div className="text-micro text-muted-foreground mb-1 tracking-widest uppercase font-bold">{label}</div>
                 <div className="text-body text-muted-foreground-2">{desc}</div>
               </div>
             ))}
           </div>
 
           {/* Live probe example (from MCP — anthropic.com) */}
-          <div className="border border-border bg-card-inset p-4">
-            <div className="text-micro text-muted-foreground mb-3">
-              {"// LIVE EXAMPLE"} &mdash; probe_http(anthropic.com)
-            </div>
+          <Panel label="// LIVE EXAMPLE" variant="inset" action={<span className="text-muted-foreground-3 normal-case tracking-normal">probe_http(anthropic.com)</span>}>
             <table className="w-full border-collapse text-body">
               <tbody>
                 {([
@@ -66,20 +67,20 @@ export default function Home() {
                   ["TECH",     "Cloudflare · HTTP/3 · AWS S3 · Sanity.io"],
                 ] as const).map(([k, v]) => (
                   <tr key={k} className="border-b border-card-hover">
-                    <td className="py-1.5 pr-6 text-muted-foreground whitespace-nowrap">{k}</td>
-                    <td className="py-1.5 text-muted-foreground-2">{v}</td>
+                    <td className="py-1.5 pr-6 text-muted-foreground tracking-widest uppercase whitespace-nowrap">{k}</td>
+                    <td className="py-1.5 text-foreground">{v}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Panel>
 
         </div>
       </main>
 
       <footer className="border-t border-border px-6 py-3 flex items-center justify-between">
-        <span className="text-micro text-muted">tier 1 + tier 2 tools only — strictly non-invasive</span>
-        <span className="text-micro text-muted">powered by subfinder · dnsx · tlsx · httpx</span>
+        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">tier 1 + tier 2 tools only — strictly non-invasive</span>
+        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">powered by subfinder · dnsx · tlsx · httpx</span>
       </footer>
     </div>
   )

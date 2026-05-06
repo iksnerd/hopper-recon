@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { useSearchParams } from "next/navigation"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
@@ -18,6 +17,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { TOOLTIP_STYLE, CHART_FILLS, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
+import {
+  ReconCard,
+  ReconCardHeader,
+  ReconCardHeaderText,
+  ReconCardTitle,
+  ReconCardAction,
+  ReconCardContent,
+} from "@/components/recon/recon-card"
+import { PageHeader } from "@/components/recon/page-header"
 import { DataChip } from "@/components/recon/data-chip"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { CopyButton } from "@/components/recon/copy-button"
@@ -95,11 +103,11 @@ async function runTool(tool: ToolId, target: string) {
 function certDaysLabel(days: number): { label: string; cls: string } {
   if (days < 14) return { label: `${days}d`, cls: "text-destructive" }
   if (days < 30) return { label: `${days}d`, cls: "text-muted-foreground-2" }
-  return { label: `${days}d`, cls: "text-primary" }
+  return { label: `${days}d`, cls: "text-terminal-green" }
 }
 
 function httpStatusBracket(code: number): { label: string; cls: string } {
-  if (code < 300) return { label: `[${code}]`, cls: "text-primary" }
+  if (code < 300) return { label: `[${code}]`, cls: "text-terminal-green" }
   if (code < 400) return { label: `[${code}]`, cls: "text-muted-foreground-2" }
   return { label: `[${code}]`, cls: "text-destructive" }
 }
@@ -208,93 +216,140 @@ function DashboardInner() {
   }, [initialDomain])
 
 
+  const doneCount = scan ? Object.values(scan.states).filter((s) => s === "done").length : 0
+  const errorCount = scan ? Object.values(scan.states).filter((s) => s === "error").length : 0
+  const totalTools = TOOLS.length
+  const scanStatus: "idle" | "running" | "done" | "errored" = !scan
+    ? "idle"
+    : anyLoading
+      ? "running"
+      : errorCount > 0
+        ? "errored"
+        : "done"
+
   return (
     <div className="min-h-screen font-mono text-foreground scanlines">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-        <SidebarTrigger className="size-6 text-muted-foreground hover:text-foreground hover:bg-card-hover rounded-none transition-colors duration-100" />
-        <span className="text-muted">/</span>
-        <span className="text-body text-foreground">dashboard</span>
-        {scan && (
-          <>
-            <span className="text-muted">/</span>
-            <span className="text-body text-muted-foreground-2">{scan.target}</span>
-          </>
-        )}
-      </header>
+      <PageHeader
+        segments={["DASHBOARD", scan?.target]}
+        right={
+          <ScanStatusPill
+            status={scanStatus}
+            done={doneCount}
+            total={totalTools}
+            errors={errorCount}
+          />
+        }
+      />
 
       <div className="px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Scan form */}
-        <div className="border border-border bg-card p-5">
-          <div className="text-micro uppercase text-muted-foreground mb-3">{"// TARGET"}</div>
-          <div className="flex gap-3 items-center">
-            <span className="text-muted-foreground text-emphasis select-none shrink-0">&gt;_</span>
-            <Input
-              placeholder="example.com"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && startScan()}
-              className="flex-1 font-mono bg-transparent border-border rounded-none shadow-none text-foreground placeholder:text-muted-foreground-3 focus-visible:ring-0 focus-visible:border-muted-foreground h-10 text-emphasis"
-            />
-            <Button
-              variant="outline"
-              onClick={() => startScan()}
-              disabled={!domain.trim() || (!!scan && !allDone)}
-              className="rounded-none border-border bg-transparent text-foreground hover:text-primary hover:bg-card-hover shadow-none ring-0 focus-visible:ring-0 active:translate-y-0 h-10 px-5 text-emphasis font-mono shrink-0 disabled:opacity-30"
-            >
-              {scan && !allDone
-                ? <span className="cursor-blink inline-block w-[1ch]">█</span>
-                : "execute"}
-            </Button>
-          </div>
-        </div>
+        <ReconCard>
+          <ReconCardHeader>
+            <ReconCardHeaderText className="flex-row items-baseline gap-2">
+              <span className="text-muted-foreground-3 font-bold tracking-widest" aria-hidden>{"//"}</span>
+              <ReconCardTitle>TARGET</ReconCardTitle>
+            </ReconCardHeaderText>
+            <ReconCardAction>
+              <span className="text-micro text-muted-foreground-3 hidden sm:inline">PRESS ENTER OR</span>
+              <Button
+                variant="outline"
+                onClick={() => startScan()}
+                disabled={!domain.trim() || (!!scan && !allDone)}
+                className="rounded-none border-terminal-green/40 bg-card-inset text-terminal-green hover:text-background hover:bg-terminal-green hover:border-terminal-green shadow-none ring-0 focus-visible:ring-0 active:translate-y-0 h-8 px-4 text-body font-bold tracking-widest uppercase font-mono shrink-0 disabled:opacity-30"
+              >
+                {scan && !allDone
+                  ? <span className="cursor-blink inline-block w-[1ch]">█</span>
+                  : ">_ EXECUTE"}
+              </Button>
+            </ReconCardAction>
+          </ReconCardHeader>
+          <ReconCardContent className="p-4">
+            <div className="flex gap-3 items-center">
+              <span className="text-terminal-green text-emphasis select-none shrink-0 font-bold">&gt;_</span>
+              <Input
+                placeholder="example.com"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && startScan()}
+                className="flex-1 font-mono bg-transparent border-0 rounded-none shadow-none text-foreground placeholder:text-muted-foreground-3 focus-visible:ring-0 focus-visible:border-0 h-10 text-emphasis px-0"
+              />
+              {scan && !allDone && (
+                <span className="cursor-blink text-terminal-green text-emphasis select-none shrink-0">█</span>
+              )}
+            </div>
+          </ReconCardContent>
+        </ReconCard>
 
         {!scan && recentDomains && recentDomains.length > 0 && (
-          <div className="border border-border bg-card p-5">
-            <div className="text-micro uppercase text-muted-foreground mb-3">{"// RECENT TARGETS"}</div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-secondary">
-              {recentDomains.slice(0, 8).map((d) => (
-                <RecentTargetTile
-                  key={d.domain}
-                  summary={d}
-                  onScan={() => { setDomain(d.domain); void startScan(d.domain) }}
-                />
-              ))}
-            </div>
-          </div>
+          <ReconCard>
+            <ReconCardHeader>
+              <ReconCardHeaderText className="flex-row items-baseline gap-2">
+                <span className="text-muted-foreground-3 font-bold tracking-widest" aria-hidden>{"//"}</span>
+                <ReconCardTitle>RECENT TARGETS</ReconCardTitle>
+              </ReconCardHeaderText>
+              <ReconCardAction>
+                <span className="text-foreground tabular-nums">[{recentDomains.length}]</span>
+              </ReconCardAction>
+            </ReconCardHeader>
+            <ReconCardContent className="p-0">
+              <div className="flex flex-wrap">
+                {recentDomains.slice(0, 8).map((d) => (
+                  <div key={d.domain} className="w-1/2 sm:w-1/3 lg:w-1/4 border-r border-b border-border last:border-r-0 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(3n)]:border-r-0 lg:[&:nth-child(3n)]:border-r lg:[&:nth-child(4n)]:border-r-0">
+                    <RecentTargetTile
+                      summary={d}
+                      onScan={() => { setDomain(d.domain); void startScan(d.domain) }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </ReconCardContent>
+          </ReconCard>
         )}
 
         {scan && (
           <>
             {/* Summary strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-secondary">
-              <MetricCell
-                label="SUBDOMAINS"
-                value={scan.subdomains ? scan.subdomains.findings.length.toString() : "—"}
-                sub="via subfinder"
-                loading={scan.states.passive_subdomains === "loading"}
-              />
-              <MetricCell
-                label="A RECORDS"
-                value={scan.dns ? scan.dns.a.length.toString() : "—"}
-                sub={scan.dns ? `ttl ${scan.dns.ttl}s` : "resolving"}
-                loading={scan.states.resolve_dns === "loading"}
-              />
-              <MetricCell
-                label="CERT EXPIRY"
-                value={scan.tls ? certDaysLabel(scan.tls.daysLeft).label : "—"}
-                valueClass={scan.tls ? certDaysLabel(scan.tls.daysLeft).cls : ""}
-                sub={scan.tls ? new Date(scan.tls.not_after).toLocaleDateString() : "fetching"}
-                loading={scan.states.fetch_tls_cert === "loading"}
-              />
-              <MetricCell
-                label="HTTP"
-                value={scan.http ? httpStatusBracket(scan.http.status_code).label : "—"}
-                valueClass={scan.http ? httpStatusBracket(scan.http.status_code).cls : ""}
-                sub={scan.http?.webserver ?? "probing"}
-                loading={scan.states.probe_http === "loading"}
-              />
-            </div>
+            <ReconCard>
+              <ReconCardHeader>
+                <ReconCardHeaderText className="flex-row items-baseline gap-2">
+                  <span className="text-muted-foreground-3 font-bold tracking-widest" aria-hidden>{"//"}</span>
+                  <ReconCardTitle>SUMMARY</ReconCardTitle>
+                </ReconCardHeaderText>
+                <ReconCardAction>
+                  <span className="text-muted-foreground tabular-nums">{scan.target}</span>
+                </ReconCardAction>
+              </ReconCardHeader>
+              <ReconCardContent className="p-0">
+                <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border">
+                  <MetricCell
+                    label="SUBDOMAINS"
+                    value={scan.subdomains ? scan.subdomains.findings.length.toString() : "—"}
+                    sub="via subfinder"
+                    loading={scan.states.passive_subdomains === "loading"}
+                  />
+                  <MetricCell
+                    label="A RECORDS"
+                    value={scan.dns ? scan.dns.a.length.toString() : "—"}
+                    sub={scan.dns ? `ttl ${scan.dns.ttl}s` : "resolving"}
+                    loading={scan.states.resolve_dns === "loading"}
+                  />
+                  <MetricCell
+                    label="CERT EXPIRY"
+                    value={scan.tls ? certDaysLabel(scan.tls.daysLeft).label : "—"}
+                    valueClass={scan.tls ? certDaysLabel(scan.tls.daysLeft).cls : ""}
+                    sub={scan.tls ? new Date(scan.tls.not_after).toLocaleDateString() : "fetching"}
+                    loading={scan.states.fetch_tls_cert === "loading"}
+                  />
+                  <MetricCell
+                    label="HTTP"
+                    value={scan.http ? httpStatusBracket(scan.http.status_code).label : "—"}
+                    valueClass={scan.http ? httpStatusBracket(scan.http.status_code).cls : ""}
+                    sub={scan.http?.webserver ?? "probing"}
+                    loading={scan.states.probe_http === "loading"}
+                  />
+                </div>
+              </ReconCardContent>
+            </ReconCard>
 
             {/* Results: two-column at lg (findings left, tabs right) */}
             <div className="lg:grid lg:grid-cols-[300px_1fr] lg:gap-6 lg:items-start">
@@ -312,17 +367,17 @@ function DashboardInner() {
               <div>
             {/* Results tabs */}
             <Tabs defaultValue="passive_subdomains">
-              <TabsList className="bg-transparent border-b border-border rounded-none w-full justify-start h-auto p-0 gap-0 overflow-x-auto">
+              <TabsList className="bg-card border border-border rounded-none w-full justify-start h-auto p-0 gap-0 overflow-x-auto">
                 {TOOLS.map(({ id, label }) => (
                   <TabsTrigger
                     key={id}
                     value={id}
-                    className="font-mono text-micro text-muted-foreground rounded-none border-b-2 border-transparent px-5 py-3 data-[state=active]:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent hover:text-muted-foreground-2 transition-colors duration-100 gap-2 shadow-none whitespace-nowrap"
+                    className="font-mono text-body text-muted-foreground rounded-none border-r border-border last:border-r-0 px-4 py-2.5 data-[state=active]:text-terminal-green data-[state=active]:bg-card-hover data-[state=active]:font-bold hover:text-foreground hover:bg-card-hover transition-colors duration-100 gap-2 shadow-none whitespace-nowrap relative data-[state=active]:after:absolute data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:bottom-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-terminal-green"
                   >
-                    <span>{label}<span className="tabular-nums">{tabSuffix(scan, id, now)}</span></span>
-                    {scan.states[id] === "loading" && <span className="cursor-blink text-muted-foreground-3">▮</span>}
+                    <span className="tracking-wider uppercase">{label}<span className="tabular-nums normal-case tracking-normal">{tabSuffix(scan, id, now)}</span></span>
+                    {scan.states[id] === "loading" && <span className="cursor-blink text-terminal-green">▮</span>}
                     {scan.states[id] === "error"   && <span className="text-destructive text-micro">[ERR]</span>}
-                    {scan.states[id] === "done"    && <span className="text-muted-foreground text-micro">[OK{scan.durations[id] != null ? ` ${(scan.durations[id]! / 1000).toFixed(1)}s` : ""}]</span>}
+                    {scan.states[id] === "done"    && <span className="text-terminal-green-dim text-micro">[OK{scan.durations[id] != null ? ` ${(scan.durations[id]! / 1000).toFixed(1)}s` : ""}]</span>}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -639,13 +694,48 @@ function MetricCell({ label, value, sub, loading, valueClass }: {
   label: string; value: string; sub: string; loading?: boolean; valueClass?: string
 }) {
   return (
-    <div className="bg-card p-4">
-      <div className="text-micro text-muted-foreground mb-2">{label}</div>
+    <div className="bg-card hover:bg-card-hover transition-colors duration-100 p-4 flex flex-col gap-1.5">
+      <div className="text-micro text-muted-foreground tracking-widest uppercase font-bold">{label}</div>
       {loading
         ? <div className="text-metric text-muted-foreground-3 cursor-blink">█</div>
-        : <div className={`text-metric tabular-nums ${valueClass ?? "text-primary"}`}>{value}</div>}
-      <div className="text-body text-muted-foreground-3 mt-1">{sub}</div>
+        : <div className={`text-metric tabular-nums ${valueClass ?? "text-foreground"}`}>{value}</div>}
+      <div className="text-body text-muted-foreground-3 leading-tight">{sub}</div>
     </div>
+  )
+}
+
+function ScanStatusPill({ status, done, total, errors }: {
+  status: "idle" | "running" | "done" | "errored"
+  done: number
+  total: number
+  errors: number
+}) {
+  if (status === "idle") {
+    return (
+      <span className="font-mono text-micro tracking-widest uppercase text-muted-foreground-3 border border-border bg-card-inset px-2 py-1">
+        [IDLE]
+      </span>
+    )
+  }
+  if (status === "running") {
+    return (
+      <span className="font-mono text-micro tracking-widest uppercase text-terminal-green border border-terminal-green/40 bg-card-inset px-2 py-1 flex items-center gap-2">
+        <span className="cursor-blink">█</span>
+        SCANNING {done}/{total}
+      </span>
+    )
+  }
+  if (status === "errored") {
+    return (
+      <span className="font-mono text-micro tracking-widest uppercase text-destructive border border-destructive/60 bg-card-inset px-2 py-1">
+        [{errors} ERR · {done}/{total} OK]
+      </span>
+    )
+  }
+  return (
+    <span className="font-mono text-micro tracking-widest uppercase text-terminal-green border border-terminal-green/40 bg-card-inset px-2 py-1">
+      [DONE {done}/{total}]
+    </span>
   )
 }
 
@@ -693,7 +783,7 @@ function SecurityTxtBadge({ label, present }: { label: string; present: boolean 
   return (
     <Badge
       variant="outline"
-      className={`rounded-none h-auto py-0.5 px-2 text-micro font-mono font-normal border-border ${present ? "bg-card-inset text-primary" : "bg-card-inset text-destructive"}`}
+      className={`rounded-none h-auto py-0.5 px-2 text-micro font-mono font-normal border-border ${present ? "bg-card-inset text-terminal-green" : "bg-card-inset text-destructive"}`}
     >
       {present ? "✓" : "✗"} {label}
     </Badge>
@@ -724,10 +814,13 @@ function RecentTargetTile({ summary, onScan }: { summary: DomainSummary; onScan:
   return (
     <button
       onClick={onScan}
-      className="bg-card p-3 text-left hover:bg-card-hover transition-colors duration-100 group w-full"
+      className="bg-card p-3 text-left hover:bg-card-hover transition-colors duration-100 group w-full flex flex-col gap-1.5"
     >
-      <div className="text-body text-foreground group-hover:text-primary truncate font-mono">{summary.domain}</div>
-      <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+      <div className="flex items-center gap-2">
+        <span className="text-terminal-green-dim text-micro tracking-widest uppercase shrink-0 group-hover:text-terminal-green transition-colors duration-100" aria-hidden>&gt;_</span>
+        <span className="text-body text-foreground group-hover:text-terminal-green truncate font-mono">{summary.domain}</span>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap pl-5">
         {httpRow?.http_status != null && (
           <span className={`text-micro tabular-nums ${httpStatusBracket(httpRow.http_status).cls}`}>
             {httpStatusBracket(httpRow.http_status).label}

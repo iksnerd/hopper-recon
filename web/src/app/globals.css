@@ -14,6 +14,8 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-terminal-green: var(--terminal-green);
+  --color-terminal-green-dim: var(--terminal-green-dim);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -73,6 +75,8 @@
   --accent: oklch(0.18 0 0);
   --accent-foreground: oklch(0.92 0 0);
   --destructive: oklch(0.52 0.14 27);   /* slightly brighter red: was 0.47 */
+  --terminal-green: oklch(0.85 0.19 145);  /* phosphor green — accent only */
+  --terminal-green-dim: oklch(0.55 0.10 145);
   --border: oklch(0.22 0 0);            /* visible borders — was 0.15 */
   --input: oklch(0.22 0 0);
   --ring: oklch(0.42 0 0);
@@ -84,13 +88,13 @@
   --radius: 0;
   /* sidebar tokens reference main tokens — no duplicated values */
   --sidebar: var(--card);
-  --sidebar-foreground: var(--muted-foreground);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-foreground: oklch(0.85 0 0);  /* brighter — was muted-foreground */
+  --sidebar-primary: var(--terminal-green);
+  --sidebar-primary-foreground: var(--background);
   --sidebar-accent: var(--card-hover);
-  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-accent-foreground: var(--terminal-green);
   --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
+  --sidebar-ring: var(--terminal-green-dim);
 }
 
 @layer base {

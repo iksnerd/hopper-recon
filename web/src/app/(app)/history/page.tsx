@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
@@ -24,6 +23,7 @@ import type { ScanRow } from "@/lib/db"
 import { formatDistanceToNow } from "date-fns"
 import { CHART_FILLS, CHART_CURSOR, CHART_TICK_SM } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
+import { PageHeader } from "@/components/recon/page-header"
 import { DataChip } from "@/components/recon/data-chip"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
@@ -32,11 +32,11 @@ import { GeoGlobe } from "@/components/recon/geo-globe"
 function certDaysCls(days: number) {
   if (days < 14) return "text-destructive"
   if (days < 30) return "text-muted-foreground-2"
-  return "text-primary"
+  return "text-terminal-green"
 }
 
 function httpStatusCls(code: number) {
-  if (code < 300) return "text-primary"
+  if (code < 300) return "text-terminal-green"
   if (code < 400) return "text-muted-foreground-2"
   return "text-destructive"
 }
@@ -171,22 +171,21 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen font-mono text-foreground scanlines">
-      <header className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-        <SidebarTrigger className="size-6 text-muted-foreground hover:text-foreground hover:bg-card-hover rounded-none transition-colors duration-100" />
-        <span className="text-muted">/</span>
-        <span className="text-body text-foreground">history</span>
-        {domains && (
-          <>
-            <span className="text-muted">/</span>
-            <span className="text-body text-muted-foreground">{domains.length} domains</span>
-          </>
-        )}
-      </header>
+      <PageHeader
+        segments={["HISTORY"]}
+        right={
+          domains != null && (
+            <span className="font-mono text-micro tracking-widest uppercase text-muted-foreground-2 border border-border bg-card-inset px-2 py-1">
+              [{domains.length} DOMAIN{domains.length === 1 ? "" : "S"}]
+            </span>
+          )
+        }
+      />
 
       <div className="px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-4">
         {/* Filter */}
         <div className="border border-border bg-card px-4 py-2 flex items-center gap-2">
-          <span className="text-muted-foreground text-emphasis select-none shrink-0">&gt;_</span>
+          <span className="text-terminal-green text-emphasis select-none shrink-0 font-bold">&gt;_</span>
           <Input
             type="text"
             placeholder="filter domains..."
@@ -220,8 +219,8 @@ export default function HistoryPage() {
           <div className="border border-border bg-card p-8 flex flex-col items-center gap-3 text-center">
             <div className="text-micro text-muted-foreground">{"// NO SCANS YET"}</div>
             <p className="text-body text-muted-foreground-3">run a scan from the dashboard to populate history</p>
-            <Link href="/dashboard" className="text-body text-muted-foreground hover:text-foreground border border-border px-4 py-1.5 transition-colors duration-100 mt-2">
-              &gt;_ go to dashboard
+            <Link href="/dashboard" className="text-body text-terminal-green hover:text-background hover:bg-terminal-green border border-terminal-green/40 bg-card-inset px-4 py-1.5 transition-colors duration-100 mt-2 tracking-widest uppercase font-bold">
+              &gt;_ GO TO DASHBOARD
             </Link>
           </div>
         )}
@@ -292,75 +291,82 @@ function DomainCard({ data, open, onToggle, onRescan }: {
 
   return (
     <div className="border border-border bg-card">
-      {/* Summary header */}
+      {/* Row header — clickable expand */}
       <div
-        className="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4 cursor-pointer hover:bg-card-hover transition-colors duration-100 select-none"
+        className={`relative px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4 cursor-pointer hover:bg-card-hover transition-colors duration-100 select-none before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] ${open ? "before:bg-terminal-green/70" : "before:bg-foreground/20"}`}
         onClick={onToggle}
+        aria-expanded={open}
       >
-        <span className="text-muted-foreground text-body w-3 shrink-0">{open ? "▾" : "▸"}</span>
+        <span className="text-muted-foreground text-body w-3 shrink-0 transition-transform duration-100" aria-hidden>
+          {open ? "▾" : "▸"}
+        </span>
         <Link
           href={`/history/${encodeURIComponent(summary.domain)}`}
           onClick={(e) => e.stopPropagation()}
-          className="text-foreground text-emphasis flex-1 truncate hover:text-muted-foreground-2 transition-colors duration-100"
+          className="text-foreground text-emphasis font-bold flex-1 truncate hover:text-primary transition-colors duration-100 tracking-tight"
         >
           {summary.domain}
         </Link>
 
         {/* Mini stat strip */}
-        <div className="hidden md:flex items-center gap-6 text-body">
+        <div className="hidden md:flex items-center gap-0 text-body divide-x divide-border">
           {subdomains && <Stat label="SUBS" value={subdomains.findings.length.toString()} />}
           {dns && <Stat label="IPS" value={dns.a.length.toString()} />}
           {tls && <Stat label="CERT" value={`${tls.daysLeft}d`} cls={certDaysCls(tls.daysLeft)} />}
           {http && <Stat label="HTTP" value={`[${http.status_code}]`} cls={httpStatusCls(http.status_code)} />}
-          {http?.tech && http.tech.length > 0 && (
-            <div className="flex gap-1">
-              {http.tech.slice(0, 3).map((t) => (
-                <DataChip key={t} className="px-1.5 text-muted-foreground">{t}</DataChip>
-              ))}
-            </div>
-          )}
         </div>
+        {http?.tech && http.tech.length > 0 && (
+          <div className="hidden lg:flex gap-1 max-w-[200px] overflow-hidden">
+            {http.tech.slice(0, 3).map((t) => (
+              <DataChip key={t} className="px-1.5 text-muted-foreground-3">{t}</DataChip>
+            ))}
+          </div>
+        )}
 
-        <span className="text-muted-foreground-3 text-micro shrink-0 hidden sm:inline">
+        <span className="text-muted-foreground-3 text-micro tracking-widest uppercase shrink-0 hidden sm:inline">
           {relativeTime(summary.lastScanned)}
         </span>
-        <Button
-          variant="outline"
-          onClick={(e) => { e.stopPropagation(); onRescan() }}
-          className="rounded-none border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-card-hover shadow-none ring-0 focus-visible:ring-0 active:translate-y-0 h-auto py-0.5 px-2 text-micro font-mono shrink-0"
-        >
-          rescan
-        </Button>
 
-        {/* Delete controls */}
-        {confirming ? (
-          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-            <span className="text-micro text-muted-foreground">[delete?]</span>
-            <Button
-              variant="ghost"
-              onClick={handleDelete}
-              disabled={deleteMutation.isPending}
-              className="rounded-none bg-transparent text-destructive hover:text-destructive hover:bg-transparent shadow-none ring-0 focus-visible:ring-0 h-auto py-0.5 px-1.5 text-micro font-mono"
-            >
-              [yes]
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={(e) => { e.stopPropagation(); setConfirming(false) }}
-              className="rounded-none bg-transparent text-muted-foreground hover:text-foreground hover:bg-transparent shadow-none ring-0 focus-visible:ring-0 h-auto py-0.5 px-1.5 text-micro font-mono"
-            >
-              [no]
-            </Button>
-          </div>
-        ) : (
+        {/* Action cluster */}
+        <div className="flex items-center border-l border-border pl-2 sm:pl-3 ml-1 gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           <Button
-            variant="ghost"
-            onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
-            className="rounded-none bg-transparent text-muted-foreground hover:text-destructive hover:bg-transparent shadow-none ring-0 focus-visible:ring-0 h-auto py-0.5 px-1.5 text-micro font-mono shrink-0"
+            variant="outline"
+            onClick={(e) => { e.stopPropagation(); onRescan() }}
+            className="rounded-none border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-card-inset shadow-none ring-0 focus-visible:ring-0 active:translate-y-0 h-7 py-0 px-2.5 text-micro tracking-widest uppercase font-mono"
           >
-            [×]
+            &gt;_ RESCAN
           </Button>
-        )}
+
+          {confirming ? (
+            <>
+              <span className="text-micro text-muted-foreground tracking-widest uppercase px-1">DELETE?</span>
+              <Button
+                variant="ghost"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+                className="rounded-none bg-transparent text-destructive hover:text-destructive hover:bg-card-inset shadow-none ring-0 focus-visible:ring-0 h-7 py-0 px-2 text-micro tracking-widest uppercase font-mono"
+              >
+                [YES]
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setConfirming(false)}
+                className="rounded-none bg-transparent text-muted-foreground hover:text-foreground hover:bg-card-inset shadow-none ring-0 focus-visible:ring-0 h-7 py-0 px-2 text-micro tracking-widest uppercase font-mono"
+              >
+                [NO]
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              onClick={() => setConfirming(true)}
+              className="rounded-none bg-transparent text-muted-foreground-3 hover:text-destructive hover:bg-card-inset shadow-none ring-0 focus-visible:ring-0 h-7 w-7 p-0 text-body font-mono shrink-0"
+              aria-label="delete"
+            >
+              ×
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Expanded detail */}
@@ -538,7 +544,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
 
           {/* Scan history timeline — only when 2+ scan sessions exist */}
           {showTimeline && (
-            <Panel label={`// SCAN HISTORY [${timeline.length} sessions]`} variant="inset" className="p-3">
+            <Panel label={`// SCAN HISTORY [${timeline.length} sessions]`} variant="inset" contentClassName="p-3">
               <ChartBoundary label="timeline">
                 <ChartContainer config={TIMELINE_CONFIG} className="h-[160px] w-full aspect-auto">
                   <LineChart data={timeline} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -618,17 +624,17 @@ function MiniTable({ rows }: { rows: { label: string; value: string }[] }) {
   )
 }
 
-function Stat({ label, value, cls = "text-primary" }: { label: string; value: string; cls?: string }) {
+function Stat({ label, value, cls = "text-foreground" }: { label: string; value: string; cls?: string }) {
   return (
-    <div className="text-center">
-      <div className="text-micro text-muted-foreground">{label}</div>
-      <div className={`text-body font-bold tabular-nums ${cls}`}>{value}</div>
+    <div className="px-3 text-center first:pl-0 last:pr-0">
+      <div className="text-micro text-muted-foreground tracking-widest uppercase">{label}</div>
+      <div className={`text-body font-bold tabular-nums leading-tight ${cls}`}>{value}</div>
     </div>
   )
 }
 
 function DetailPanel({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-  return <Panel label={label} variant="inset" className={`p-3 ${className ?? ""}`}>{children}</Panel>
+  return <Panel label={label} variant="inset" contentClassName="p-3" className={className}>{children}</Panel>
 }
 
 function RecordRow({ label, items }: { label: string; items: string[] }) {
@@ -645,7 +651,7 @@ function RecordRow({ label, items }: { label: string; items: string[] }) {
 }
 
 function SecPill({ label, on, danger }: { label: string; on?: boolean; danger?: boolean }) {
-  const cls = danger ? "text-destructive" : on ? "text-primary" : "text-destructive"
+  const cls = danger ? "text-destructive" : on ? "text-terminal-green" : "text-destructive"
   const glyph = danger ? "!" : on ? "✓" : "✗"
   return (
     <span className={`font-mono text-micro border border-border bg-card-inset px-1.5 py-0.5 ${cls}`}>

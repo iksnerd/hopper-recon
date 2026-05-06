@@ -1,5 +1,12 @@
 import * as React from "react"
 import type { SubdomainResult, DnsResult, TlsResult, HttpResult } from "@/lib/scan-parser"
+import {
+  ReconCard,
+  ReconCardHeader,
+  ReconCardHeaderText,
+  ReconCardTitle,
+  ReconCardAction,
+} from "@/components/recon/recon-card"
 
 type Severity = "issue" | "ok" | "info"
 
@@ -81,23 +88,24 @@ export function FindingsStrip(props: {
   const okCount = findings.filter((f) => f.severity === "ok").length
 
   return (
-    <section className="border border-border bg-card">
-      <header className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-micro uppercase text-muted-foreground tracking-widest">
-          {"// FINDINGS"}
-        </span>
-        <span className="text-micro text-muted-foreground tabular-nums">
-          {issueCount > 0 && <span className="text-destructive">{issueCount} ISSUE{issueCount === 1 ? "" : "S"}</span>}
-          {issueCount > 0 && okCount > 0 && <span className="text-muted-foreground-3 mx-2">·</span>}
-          {okCount > 0 && <span className="text-muted-foreground-2">{okCount} OK</span>}
-        </span>
-      </header>
+    <ReconCard tone={issueCount > 0 ? "danger" : "neutral"}>
+      <ReconCardHeader className="gap-2">
+        <ReconCardHeaderText className="flex-row items-baseline gap-2 min-w-0">
+          <span className="text-muted-foreground-3 font-bold tracking-widest shrink-0" aria-hidden>{"//"}</span>
+          <ReconCardTitle className="shrink-0">FINDINGS</ReconCardTitle>
+        </ReconCardHeaderText>
+        <ReconCardAction className="text-micro flex-wrap justify-end">
+          {issueCount > 0 && <span className="text-destructive font-bold whitespace-nowrap">{issueCount} ISSUE{issueCount === 1 ? "" : "S"}</span>}
+          {issueCount > 0 && okCount > 0 && <span className="text-muted-foreground-3">·</span>}
+          {okCount > 0 && <span className="text-terminal-green-dim whitespace-nowrap">{okCount} OK</span>}
+        </ReconCardAction>
+      </ReconCardHeader>
       <ul className="divide-y divide-card-hover">
         {findings.map((f, i) => (
           <FindingRow key={i} finding={f} />
         ))}
       </ul>
-    </section>
+    </ReconCard>
   )
 }
 

@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import {
@@ -23,6 +22,7 @@ import type { ScanRow } from "@/lib/db"
 import { formatDistanceToNow } from "date-fns"
 import { CHART_FILLS, CHART_CURSOR, CHART_TICK_SM } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
+import { PageHeader } from "@/components/recon/page-header"
 import { DataChip } from "@/components/recon/data-chip"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
@@ -68,11 +68,11 @@ function buildTimeline(rows: ScanRow[]) {
 function certDaysCls(days: number) {
   if (days < 14) return "text-destructive"
   if (days < 30) return "text-muted-foreground-2"
-  return "text-primary"
+  return "text-terminal-green"
 }
 
 function httpStatusCls(code: number) {
-  if (code < 300) return "text-primary"
+  if (code < 300) return "text-terminal-green"
   if (code < 400) return "text-muted-foreground-2"
   return "text-destructive"
 }
@@ -153,27 +153,25 @@ export default function DomainDetailPage() {
 
   return (
     <div className="min-h-screen font-mono text-foreground scanlines">
-      <header className="border-b border-border px-4 py-3 flex items-center gap-3">
-        <SidebarTrigger className="size-6 text-muted-foreground hover:text-foreground hover:bg-card-hover rounded-none transition-colors duration-100" />
-        <Link href="/history" className="text-muted hover:text-foreground transition-colors duration-100">/</Link>
-        <Link href="/history" className="text-body text-muted-foreground hover:text-foreground transition-colors duration-100">history</Link>
-        <span className="text-muted">/</span>
-        <span className="text-body text-foreground truncate">{domain}</span>
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          {summary && (
-            <span className="text-micro text-muted-foreground-3 hidden sm:inline">
-              {formatDistanceToNow(new Date(summary.lastScanned), { addSuffix: true })}
-            </span>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/dashboard?domain=${encodeURIComponent(domain)}`)}
-            className="rounded-none border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-card-hover shadow-none ring-0 focus-visible:ring-0 h-auto py-0.5 px-2 text-micro font-mono"
-          >
-            &gt;_ rescan
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        segments={["HISTORY", domain]}
+        right={
+          <>
+            {summary && (
+              <span className="text-micro tracking-widest uppercase text-muted-foreground-3 hidden sm:inline">
+                {formatDistanceToNow(new Date(summary.lastScanned), { addSuffix: true })}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/dashboard?domain=${encodeURIComponent(domain)}`)}
+              className="rounded-none border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-card-inset shadow-none ring-0 focus-visible:ring-0 h-7 py-0 px-2.5 text-micro tracking-widest uppercase font-mono"
+            >
+              &gt;_ RESCAN
+            </Button>
+          </>
+        }
+      />
 
       <div className="px-4 sm:px-8 lg:px-12 py-6 space-y-5 max-w-7xl mx-auto">
 
@@ -231,7 +229,7 @@ export default function DomainDetailPage() {
 
               {/* Subdomains */}
               {subdomains && (
-                <Panel label={`// SUBDOMAINS [${subdomains.findings.length}]`} variant="inset" className="p-4">
+                <Panel label={`// SUBDOMAINS [${subdomains.findings.length}]`} variant="inset">
                   {subdomains.categories.length > 0 && (
                     <ChartBoundary label="detail-sub-cat">
                       <ChartContainer config={SUB_CAT_CONFIG} className="h-[180px] w-full aspect-auto mb-3">
@@ -277,7 +275,7 @@ export default function DomainDetailPage() {
 
               {/* HTTP */}
               {http && (
-                <Panel label="// HTTP" variant="inset" className="p-4">
+                <Panel label="// HTTP" variant="inset">
                   <div className="flex items-center gap-2 mb-3">
                     <RedirectChain codes={http.chain_status_codes} />
                   </div>
@@ -315,7 +313,7 @@ export default function DomainDetailPage() {
 
               {/* DNS */}
               {dns && (
-                <Panel label="// DNS" variant="inset" className="p-4">
+                <Panel label="// DNS" variant="inset">
                   {dns.ipDistribution.length > 1 && (
                     <ChartBoundary label="detail-ip">
                       <ChartContainer config={IP_DIST_CONFIG} className="h-[120px] w-full aspect-auto mb-3">
@@ -367,7 +365,7 @@ export default function DomainDetailPage() {
 
               {/* TLS */}
               {tls && (
-                <Panel label="// TLS CERTIFICATE" variant="inset" className="p-4">
+                <Panel label="// TLS CERTIFICATE" variant="inset">
                   <CertBar tls={tls} />
                   {(tls.wildcard || tls.expired || tls.self_signed) && (
                     <div className="flex flex-wrap gap-1 mb-3">
@@ -398,7 +396,7 @@ export default function DomainDetailPage() {
 
             {/* Uncover */}
             {uncover && uncover.entries.length > 0 && (
-              <Panel label={`// EXPOSED HOSTS [${uncover.entries.length}]`} variant="inset" className="p-4 lg:col-span-2">
+              <Panel label={`// EXPOSED HOSTS [${uncover.entries.length}]`} variant="inset" className="lg:col-span-2">
                 <div className="flex flex-wrap gap-1 mb-3">
                   {uncover.sourceCounts.map(({ source, count }) => (
                     <DataChip key={source} className="px-1.5">{source} {count}</DataChip>
@@ -422,7 +420,7 @@ export default function DomainDetailPage() {
 
             {/* Scan history timeline */}
             {showTimeline && (
-              <Panel label={`// SCAN HISTORY [${timeline.length} sessions]`} className="p-4">
+              <Panel label={`// SCAN HISTORY [${timeline.length} sessions]`}>
                 <ChartBoundary label="detail-timeline">
                   <ChartContainer config={TIMELINE_CONFIG} className="h-[200px] w-full aspect-auto">
                     <LineChart data={timeline} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>

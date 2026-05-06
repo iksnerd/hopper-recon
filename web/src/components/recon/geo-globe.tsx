@@ -2,6 +2,13 @@
 
 import * as React from "react"
 import createGlobe from "cobe"
+import {
+  ReconCard,
+  ReconCardHeader,
+  ReconCardHeaderText,
+  ReconCardTitle,
+  ReconCardAction,
+} from "@/components/recon/recon-card"
 
 // ISO 3166-1 alpha-2 → [lat, lng] centroids
 const COORDS: Record<string, [number, number]> = {
@@ -118,13 +125,16 @@ export function GeoGlobe({ countries }: GeoGlobeProps) {
   const sorted = [...countries].sort((a, b) => b.count - a.count)
 
   return (
-    <div className="border border-border bg-card">
-      <div className="px-4 py-2 border-b border-border">
-        <span className="font-mono text-xs tracking-widest text-muted-foreground">
-          {"// INFRASTRUCTURE GEO"}{" "}
-          <span className="text-muted-foreground-3">[{visible.length} countr{visible.length === 1 ? "y" : "ies"}]</span>
-        </span>
-      </div>
+    <ReconCard>
+      <ReconCardHeader>
+        <ReconCardHeaderText className="flex-row items-baseline gap-2">
+          <span className="text-muted-foreground-3 font-bold tracking-widest" aria-hidden>{"//"}</span>
+          <ReconCardTitle>INFRASTRUCTURE GEO</ReconCardTitle>
+        </ReconCardHeaderText>
+        <ReconCardAction>
+          <span className="text-foreground tabular-nums">[{visible.length} {visible.length === 1 ? "COUNTRY" : "COUNTRIES"}]</span>
+        </ReconCardAction>
+      </ReconCardHeader>
       <div className="flex flex-col sm:flex-row">
         <div className="flex items-center justify-center p-4 shrink-0">
           <canvas
@@ -133,19 +143,19 @@ export function GeoGlobe({ countries }: GeoGlobeProps) {
           />
         </div>
         <div className="border-t sm:border-t-0 sm:border-l border-border p-4 flex-1 min-w-0 flex flex-col justify-center">
-          <div className="font-mono text-micro text-muted-foreground mb-2 tracking-widest">NODES</div>
+          <div className="font-mono text-micro text-muted-foreground mb-2 tracking-widest uppercase font-bold">NODES</div>
           <div className="space-y-0.5 max-h-[180px] overflow-y-auto">
             {sorted.map(({ code, count }) => (
               <div key={code} className="flex items-center justify-between gap-4 font-mono text-data py-0.5">
-                <span className="text-muted-foreground-2 truncate">
+                <span className="text-foreground truncate">
                   {NAMES[code] ?? code}
                 </span>
-                <span className="text-muted-foreground-3 tabular-nums shrink-0">[{count}]</span>
+                <span className="text-terminal-green-dim tabular-nums shrink-0">[{count}]</span>
               </div>
             ))}
           </div>
         </div>
       </div>
-    </div>
+    </ReconCard>
   )
 }
