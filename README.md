@@ -57,11 +57,17 @@ API keys for subfinder (`~/.config/subfinder/provider-config.yaml`) and uncover 
 
 `lookup_geoip` reads a MaxMind GeoLite2-Country database mounted into the container. It's license-restricted, so you supply it yourself:
 
-1. Sign up at <https://www.maxmind.com/en/geolite2/signup> (free).
-2. Download `GeoLite2-Country.mmdb` from the account dashboard.
-3. Place it at `~/.config/hopper-recon/GeoLite2-Country.mmdb`.
+1. Sign up for a free MaxMind account: <https://www.maxmind.com/en/geolite2/signup>
+2. After login → **Download Databases** (left sidebar) → grab `GeoLite2 Country` as **GeoIP2 Binary (.mmdb)**, not the CSV.
+3. Extract the tarball and move the `.mmdb` into place:
+   ```bash
+   mkdir -p ~/.config/hopper-recon
+   tar -xzf GeoLite2-Country_*.tar.gz
+   mv GeoLite2-Country_*/GeoLite2-Country.mmdb ~/.config/hopper-recon/
+   ```
+4. Verify: `ls ~/.config/hopper-recon/GeoLite2-Country.mmdb` should print the path with a non-zero size (~6 MB).
 
-If the file is missing, geoip lookups return empty results and the geo-globe simply doesn't render — everything else keeps working.
+The web side mounts that path into the container at scan time. If the file is missing, geoip lookups return empty results and the geo-globe simply doesn't render — everything else keeps working.
 
 ---
 
