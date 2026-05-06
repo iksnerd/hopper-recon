@@ -2,7 +2,7 @@ import { spawn } from "child_process"
 import { existsSync } from "fs"
 import { homedir } from "os"
 
-type McpTool = "passive_subdomains" | "resolve_dns" | "fetch_tls_cert" | "probe_http" | "map_asn" | "search_hosts"
+type McpTool = "passive_subdomains" | "resolve_dns" | "fetch_tls_cert" | "probe_http" | "map_asn" | "search_hosts" | "lookup_geoip"
 
 interface McpResult {
   content: Array<{ type: string; text: string }>
@@ -24,6 +24,12 @@ export async function callDockerTool(tool: McpTool, args: Record<string, string>
       const cfgDir = `${homedir()}/.config/uncover`
       if (existsSync(`${cfgDir}/provider-config.yaml`)) {
         dockerArgs.push("-v", `${cfgDir}:/root/.config/uncover:ro`)
+      }
+    }
+    if (tool === "lookup_geoip") {
+      const mmdb = `${homedir()}/.config/hopper-recon/GeoLite2-Country.mmdb`
+      if (existsSync(mmdb)) {
+        dockerArgs.push("-v", `${mmdb}:/root/.config/hopper-recon/GeoLite2-Country.mmdb:ro`)
       }
     }
     dockerArgs.push("hopper-recon:latest")

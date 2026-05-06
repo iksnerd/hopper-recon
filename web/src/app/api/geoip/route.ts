@@ -1,3 +1,7 @@
+import { getDb } from "@/lib/db"
+import type { GeoipRow } from "@/lib/db"
+import { getExecutor } from "@/lib/executor"
+
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
@@ -6,22 +10,33 @@ export async function POST(req: Request) {
     return Response.json([])
   }
 
-  // Deduplicate and cap at 100 (ip-api.com batch limit)
+  // Cap and dedupe — keeps cache lookups bounded and avoids the engine doing
+  // redundant work for IPs that appear on multiple subdomains of the same scan.
   const unique = [...new Set(ips)].slice(0, 100)
 
   try {
-    const res = await fetch("http://ip-api.com/batch?fields=query,countryCode", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(unique.map((ip) => ({ query: ip }))),
-    })
-    if (!res.ok) return Response.json([])
-    const data = (await res.json()) as Array<{ query: string; countryCode?: string }>
-    return Response.json(
-      data
-        .filter((r) => r.countryCode && r.countryCode !== "XX")
-        .map((r) => ({ ip: r.query, country: r.countryCode! }))
-    )
+    const db = await getDb()
+    const cached = await db.getCachedGeoip(unique)
+    const cachedSet = new Set(cached.map((r) => r.ip))
+    const misses = unique.filter((ip) => !cachedSet.has(ip))
+
+    const fresh: GeoipRow[] = []
+    if (misses.length > 0) {
+      const executor = await getExecutor()
+      const result = await executor.run("lookup_geoip", { ips: misses.join(",") })
+      const raw = result.content.map((c) => c.text).join("\n")
+      // The engine returns one structured-content JSON line per call.
+      try {
+        const parsed = JSON.parse(raw) as { results?: GeoipRow[] }
+        if (Array.isArray(parsed.results)) fresh.push(...parsed.results)
+      } catch {
+        // Engine returned no parseable result (mmdb missing, container failure).
+        // Fall through with whatever we have from cache.
+      }
+      if (fresh.length > 0) await db.upsertGeoip(fresh)
+    }
+
+    return Response.json([...cached, ...fresh])
   } catch {
     return Response.json([])
   }
