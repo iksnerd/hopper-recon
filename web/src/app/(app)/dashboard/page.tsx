@@ -14,7 +14,7 @@ import {
   parseSubdomains, parseDns, parseTls, parseHttp, parseUncover,
   type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type UncoverResult,
 } from "@/lib/scan-parser"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { TOOLTIP_STYLE, CHART_FILLS, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
@@ -119,6 +119,7 @@ function DashboardInner() {
   const [scan, setScan] = React.useState<ScanState | null>(null)
   const autoRanRef = React.useRef(false)
   const [now, setNow] = React.useState(() => Date.now())
+  const queryClient = useQueryClient()
 
   const { data: recentDomains } = useQuery({
     queryKey: queryKeys.domains(),
@@ -182,6 +183,11 @@ function DashboardInner() {
 
   const allDone = scan && Object.values(scan.states).every((s) => s === "done" || s === "error")
   const anyLoading = scan && Object.values(scan.states).some((s) => s === "loading")
+
+  // Refresh recent targets once all tools finish so the panel reflects the new scan.
+  React.useEffect(() => {
+    if (allDone) void queryClient.invalidateQueries({ queryKey: queryKeys.domains() })
+  }, [allDone, queryClient])
 
   // Tick ~10× per second while a tool is loading so elapsed-time labels feel live.
   React.useEffect(() => {
