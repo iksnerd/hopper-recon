@@ -64,4 +64,4 @@ logs/
 # OS
 .DS_Store
 .AppleDouble
-.LSOverride
+.LSOverride*.mmdb
