@@ -14,6 +14,8 @@ import {
   parseSubdomains, parseDns, parseTls, parseHttp, parseUncover,
   type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type UncoverResult,
 } from "@/lib/scan-parser"
+import { useQuery } from "@tanstack/react-query"
+import { queryKeys } from "@/lib/query-keys"
 import { TOOLTIP_STYLE, CHART_FILLS, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
 import { DataChip } from "@/components/recon/data-chip"
@@ -117,7 +119,16 @@ function DashboardInner() {
   const [scan, setScan] = React.useState<ScanState | null>(null)
   const autoRanRef = React.useRef(false)
   const [now, setNow] = React.useState(() => Date.now())
-  const [recentDomains, setRecentDomains] = React.useState<DomainSummary[] | null>(null)
+
+  const { data: recentDomains } = useQuery({
+    queryKey: queryKeys.domains(),
+    queryFn: async (): Promise<DomainSummary[]> => {
+      const r = await fetch("/api/scans/domains")
+      const text = await r.text()
+      if (!r.ok || !text) return []
+      return JSON.parse(text) as DomainSummary[]
+    },
+  })
 
   async function startScan(targetOverride?: string) {
     const target = (targetOverride ?? domain).trim()
@@ -190,16 +201,6 @@ function DashboardInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDomain])
 
-  React.useEffect(() => {
-    fetch("/api/scans/domains")
-      .then(async (r) => {
-        const text = await r.text()
-        if (!r.ok || !text) return []
-        return JSON.parse(text) as DomainSummary[]
-      })
-      .then(setRecentDomains)
-      .catch(() => setRecentDomains([]))
-  }, [])
 
   return (
     <div className="min-h-screen font-mono text-foreground scanlines">
@@ -242,7 +243,7 @@ function DashboardInner() {
           </div>
         </div>
 
-        {!scan && recentDomains !== null && recentDomains.length > 0 && (
+        {!scan && recentDomains && recentDomains.length > 0 && (
           <div className="border border-border bg-card p-5">
             <div className="text-micro uppercase text-muted-foreground mb-3">{"// RECENT TARGETS"}</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-secondary">

@@ -3,6 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { queryKeys } from "@/lib/query-keys"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -115,20 +117,19 @@ function parseDomain(summary: DomainSummary): ParsedDomain {
 
 export default function HistoryPage() {
   const router = useRouter()
-  const [domains, setDomains] = React.useState<ParsedDomain[] | null>(null)
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set())
   const [filter, setFilter] = React.useState("")
 
-  React.useEffect(() => {
-    fetch("/api/scans/domains")
-      .then(async (r) => {
-        const text = await r.text()
-        if (!r.ok || !text) throw new Error(`history fetch failed [${r.status}]`)
-        return JSON.parse(text) as DomainSummary[]
-      })
-      .then((data) => setDomains(data.map(parseDomain)))
-      .catch(() => setDomains([]))
-  }, [])
+  const { data: rawDomains, isPending: domainsPending } = useQuery({
+    queryKey: queryKeys.domains(),
+    queryFn: async (): Promise<DomainSummary[]> => {
+      const r = await fetch("/api/scans/domains")
+      const text = await r.text()
+      if (!r.ok || !text) throw new Error(`history fetch failed [${r.status}]`)
+      return JSON.parse(text) as DomainSummary[]
+    },
+  })
+  const domains = rawDomains?.map(parseDomain) ?? null
 
   function toggle(domain: string) {
     setExpanded((prev) => {
@@ -136,10 +137,6 @@ export default function HistoryPage() {
       if (next.has(domain)) { next.delete(domain) } else { next.add(domain) }
       return next
     })
-  }
-
-  function deleteDomain(domain: string) {
-    setDomains((prev) => prev?.filter((d) => d.summary.domain !== domain) ?? prev)
   }
 
   const filtered = domains?.filter((d) =>
@@ -212,7 +209,7 @@ export default function HistoryPage() {
         {geoCountries.length > 0 && <GeoGlobe countries={geoCountries} />}
 
         {/* Loading */}
-        {domains === null && (
+        {domainsPending && (
           <div className="border border-border bg-card p-6 text-body text-muted-foreground flex items-center gap-2">
             <span className="cursor-blink">█</span> loading...
           </div>
@@ -237,7 +234,6 @@ export default function HistoryPage() {
             open={expanded.has(d.summary.domain)}
             onToggle={() => toggle(d.summary.domain)}
             onRescan={() => router.push(`/dashboard?domain=${encodeURIComponent(d.summary.domain)}`)}
-            onDelete={deleteDomain}
           />
         ))}
 
@@ -251,41 +247,44 @@ export default function HistoryPage() {
   )
 }
 
-function DomainCard({ data, open, onToggle, onRescan, onDelete }: {
+function DomainCard({ data, open, onToggle, onRescan }: {
   data: ParsedDomain
   open: boolean
   onToggle: () => void
   onRescan: () => void
-  onDelete: (domain: string) => void
 }) {
   const { summary, subdomains, dns, tls, http, uncover } = data
+  const queryClient = useQueryClient()
   const [confirming, setConfirming] = React.useState(false)
-  const [deleting, setDeleting] = React.useState(false)
-  const [timelineRows, setTimelineRows] = React.useState<ScanRow[] | null>(null)
-  const fetchedRef = React.useRef(false)
 
-  React.useEffect(() => {
-    if (!open || fetchedRef.current) return
-    fetchedRef.current = true
-    fetch(`/api/scans/domains/${encodeURIComponent(summary.domain)}`)
-      .then(async (r) => {
-        const text = await r.text()
-        if (!r.ok || !text) return []
-        return JSON.parse(text) as ScanRow[]
-      })
-      .then(setTimelineRows)
-      .catch(() => setTimelineRows([]))
-  }, [open, summary.domain])
+  const { data: timelineRows } = useQuery({
+    queryKey: queryKeys.domainRows(summary.domain),
+    queryFn: async (): Promise<ScanRow[]> => {
+      const r = await fetch(`/api/scans/domains/${encodeURIComponent(summary.domain)}`)
+      const text = await r.text()
+      if (!r.ok || !text) return []
+      return JSON.parse(text) as ScanRow[]
+    },
+    enabled: open,
+  })
 
-  async function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation()
-    setDeleting(true)
-    await Promise.allSettled(
-      Object.values(summary.scans).map((row) =>
-        fetch(`/api/scans/${row.id}`, { method: "DELETE" })
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.allSettled(
+        Object.values(summary.scans).map((row) =>
+          fetch(`/api/scans/${row.id}`, { method: "DELETE" })
+        )
       )
-    )
-    onDelete(summary.domain)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.domains() })
+      queryClient.removeQueries({ queryKey: queryKeys.domainRows(summary.domain) })
+    },
+  })
+
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    deleteMutation.mutate()
   }
 
   const timeline = timelineRows ? buildTimeline(timelineRows) : null
@@ -340,7 +339,7 @@ function DomainCard({ data, open, onToggle, onRescan, onDelete }: {
             <Button
               variant="ghost"
               onClick={handleDelete}
-              disabled={deleting}
+              disabled={deleteMutation.isPending}
               className="rounded-none bg-transparent text-destructive hover:text-destructive hover:bg-transparent shadow-none ring-0 focus-visible:ring-0 h-auto py-0.5 px-1.5 text-micro font-mono"
             >
               [yes]
