@@ -3,6 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
+import { queryKeys } from "@/lib/query-keys"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
@@ -93,18 +95,15 @@ export default function DomainDetailPage() {
   const params = useParams()
   const domain = decodeURIComponent(params.domain as string)
   const router = useRouter()
-  const [rows, setRows] = React.useState<ScanRow[] | null>(null)
-
-  React.useEffect(() => {
-    fetch(`/api/scans/domains/${encodeURIComponent(domain)}`)
-      .then(async (r) => {
-        const text = await r.text()
-        if (!r.ok || !text) return []
-        return JSON.parse(text) as ScanRow[]
-      })
-      .then(setRows)
-      .catch(() => setRows([]))
-  }, [domain])
+  const { data: rows, isPending } = useQuery({
+    queryKey: queryKeys.domainRows(domain),
+    queryFn: async (): Promise<ScanRow[]> => {
+      const r = await fetch(`/api/scans/domains/${encodeURIComponent(domain)}`)
+      const text = await r.text()
+      if (!r.ok || !text) return []
+      return JSON.parse(text) as ScanRow[]
+    },
+  })
 
   const summary = rows ? buildSummary(rows, domain) : null
   const timeline = rows ? buildTimeline(rows) : null
@@ -179,7 +178,7 @@ export default function DomainDetailPage() {
       <div className="px-4 sm:px-8 lg:px-12 py-6 space-y-5 max-w-7xl mx-auto">
 
         {/* Loading */}
-        {rows === null && (
+        {isPending && (
           <div className="border border-border bg-card p-6 text-body text-muted-foreground flex items-center gap-2">
             <span className="cursor-blink">█</span> loading {domain}...
           </div>
