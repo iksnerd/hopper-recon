@@ -51,6 +51,9 @@ skills-lock.json
 # Docker
 .dockerignore
 
+# Personal notes / runbooks — operator-private, not for the public repo
+docs/personal/
+
 # Database (local dev)
 *.db
 *.db-journal

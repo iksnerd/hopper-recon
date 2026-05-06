@@ -156,6 +156,35 @@ func HandleDnsx(ctx context.Context, req *mcp.CallToolRequest, input DnsxInput) 
 		}
 	}
 
+	// DMARC TXT records live at _dmarc.<domain>, not the apex. Query separately
+	// and merge into the apex result's txt array so the parser can detect them.
+	if len(results) > 0 {
+		dmarcCmd := exec.CommandContext(ctx, "dnsx", "-silent", "-txt", "-json")
+		dmarcCmd.Stdin = strings.NewReader("_dmarc." + input.Target + "\n")
+		if dmarcOut, dmarcErr := dmarcCmd.CombinedOutput(); dmarcErr == nil {
+			var apex map[string]any
+			if json.Unmarshal([]byte(results[0]), &apex) == nil {
+				existing, _ := apex["txt"].([]any)
+				for _, dl := range strings.Split(strings.TrimSpace(string(dmarcOut)), "\n") {
+					if dl == "" {
+						continue
+					}
+					var dmarc map[string]any
+					if json.Unmarshal([]byte(dl), &dmarc) != nil {
+						continue
+					}
+					if dt, ok := dmarc["txt"].([]any); ok {
+						existing = append(existing, dt...)
+					}
+				}
+				apex["txt"] = existing
+				if merged, mergeErr := json.Marshal(apex); mergeErr == nil {
+					results[0] = string(merged)
+				}
+			}
+		}
+	}
+
 	return nil, DnsxOutput{
 		Results: results,
 	}, nil
