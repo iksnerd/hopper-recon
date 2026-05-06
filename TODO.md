@@ -3,6 +3,9 @@
 ## In Progress
 _(none — backend complete, FE density pass complete; Recent-Targets idle state + history delete UI still TODO)_
 
+## Follow-ups
+- [ ] Engine refactor — split `engine/main.go` into `engine/cmd/hopper-recon/main.go` + `engine/internal/tools/{subfinder,dnsx,tlsx,httpx,asnmap,uncover,geoip}.go` once the tool count grows beyond ~7 (currently borderline)
+
 ---
 
 ## Done — this session (backend + FE density)
@@ -131,7 +134,7 @@ _(none — backend complete, FE density pass complete; Recent-Targets idle state
 ## Polish
 - ~~Landing page live example~~ — dropped: running `probe_http` on every page load would exhaust Cloudflare Workers free tier CPU budget
 - [ ] Empty state illustrations for history / dashboard
-- [ ] Replace ip-api.com geoip lookups with bundled MaxMind GeoLite2 (oschwald/geoip2-golang) — zero external runtime dependency, works offline
+- [x] Replace ip-api.com geoip lookups with bundled MaxMind GeoLite2 (oschwald/geoip2-golang) — engine-side `lookup_geoip` MCP tool reads `~/.config/hopper-recon/GeoLite2-Country.mmdb` (volume-mounted, license-restricted so not baked in); web route caches results in `geoip_cache` table to avoid Docker spawn per history-page view
 - [x] Mobile layout pass
 - [x] Favicon + metadata (custom `>_` SVG icon, full OG/keywords metadata, title template)
 - [x] Error boundary for chart crashes (`recon/chart-boundary.tsx` wraps every recharts container)

@@ -15,7 +15,7 @@ Passive security reconnaissance platform. A **Next.js 16** web frontend runs sca
 - **History** — list of all scanned domains with inline stats, multi-scan timeline charts, geo-globe from IP data
 - **Domain detail** — full-page per-domain view with uncapped subdomain list, cert SAN expansion, TXT records, port exposure (uncover), per-subdomain `>_ scan` links
 - **EXPOSE tab** — powered by `uncover`, queries Shodan/Censys/FOFA for exposed IPs and open ports via `ssl:"<domain>"`
-- **Geo globe** — IP → country via ip-api.com, rendered with [cobe](https://cobe.vercel.app)
+- **Geo globe** — IP → country via bundled MaxMind GeoLite2 (offline, no rate limit), rendered with [cobe](https://cobe.vercel.app)
 - **Findings strip** — auto-triage: expired certs, missing SPF/DMARC, HTTPS→HTTP downgrades, sensitive subdomains
 - **Dual DB** — SQLite for local dev (auto-migrated), Cloudflare D1 for production
 
@@ -49,8 +49,19 @@ The web app calls the engine over MCP via `docker run --rm -i hopper-recon:lates
 | `fetch_tls_cert` | tlsx | TLS cert details — CN, SANs, expiry, cipher |
 | `probe_http` | httpx | HTTP probe — title, tech stack, JARM, CPE, redirects |
 | `search_hosts` | uncover | Search Shodan/Censys/FOFA for exposed IPs/ports |
+| `lookup_geoip` | geoip2-golang | Resolve IPs to ISO country codes from a local MaxMind GeoLite2 mmdb |
 
 API keys for subfinder (`~/.config/subfinder/provider-config.yaml`) and uncover (`~/.config/uncover/provider-config.yaml`) are volume-mounted read-only when present.
+
+### GeoLite2 setup
+
+`lookup_geoip` reads a MaxMind GeoLite2-Country database mounted into the container. It's license-restricted, so you supply it yourself:
+
+1. Sign up at <https://www.maxmind.com/en/geolite2/signup> (free).
+2. Download `GeoLite2-Country.mmdb` from the account dashboard.
+3. Place it at `~/.config/hopper-recon/GeoLite2-Country.mmdb`.
+
+If the file is missing, geoip lookups return empty results and the geo-globe simply doesn't render — everything else keeps working.
 
 ---
 
@@ -130,10 +141,10 @@ The Cloudflare Sandbox executor for running the engine in production is stubbed 
 
 See [TODO.md](./TODO.md) for the full list. Key open items:
 
-- Replace ip-api.com with bundled MaxMind GeoLite2 (offline, no rate limit)
 - Cloudflare Sandbox executor wiring for production scans
 - Auth (NextAuth — GitHub/Google OAuth), per-user scan limits
 - `uncover` batch scanning against all discovered subdomains
+- Engine refactor — split monolithic `main.go` into `cmd/` + `internal/tools/`
 
 ---
 

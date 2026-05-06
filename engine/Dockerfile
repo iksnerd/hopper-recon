@@ -28,6 +28,10 @@ WORKDIR /app
 # Install dependencies for tools
 RUN apk add --no-cache ca-certificates libc6-compat
 
+# GeoLite2-Country.mmdb is volume-mounted at runtime (license-restricted, can't bake in).
+# Pre-create the mount directory so docker -v works without a host-side parent dir.
+RUN mkdir -p /root/.config/hopper-recon
+
 # Copy binaries from builder
 COPY --from=builder /go/bin/subfinder /usr/local/bin/subfinder
 COPY --from=builder /go/bin/dnsx /usr/local/bin/dnsx

@@ -20,6 +20,11 @@ export interface ScanMeta {
   tech_stack?: string
 }
 
+export interface GeoipRow {
+  ip: string
+  country: string
+}
+
 export interface DbAdapter {
   insertScan(id: string, domain: string, tool: string): Promise<void>
   completeScan(id: string, results: unknown, meta?: ScanMeta): Promise<void>
@@ -29,6 +34,8 @@ export interface DbAdapter {
   sweepStaleScans(olderThanMinutes?: number): Promise<void>
   getRecentScans(limit?: number): Promise<ScanRow[]>
   getScansByDomain(domain: string): Promise<ScanRow[]>
+  getCachedGeoip(ips: string[]): Promise<GeoipRow[]>
+  upsertGeoip(rows: GeoipRow[]): Promise<void>
 }
 
 // ── SQLite (local dev) ────────────────────────────────────────────────────────
@@ -63,6 +70,14 @@ function createSqliteAdapter(): DbAdapter {
     CREATE INDEX IF NOT EXISTS idx_scans_http_status ON scans(http_status);
     CREATE INDEX IF NOT EXISTS idx_scans_cert_expiry ON scans(cert_expiry);
     CREATE INDEX IF NOT EXISTS idx_scans_tech_stack  ON scans(tech_stack);
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS geoip_cache (
+      ip         TEXT PRIMARY KEY,
+      country    TEXT NOT NULL,
+      fetched_at INTEGER NOT NULL
+    );
   `)
 
   // On startup, mark any pending rows older than 2 min as failed — they were
@@ -108,6 +123,22 @@ function createSqliteAdapter(): DbAdapter {
       Promise.resolve(db.prepare("SELECT * FROM scans ORDER BY started_at DESC LIMIT ?").all(limit) as ScanRow[]),
     getScansByDomain: (domain) =>
       Promise.resolve(db.prepare("SELECT * FROM scans WHERE domain=? ORDER BY started_at DESC").all(domain) as ScanRow[]),
+    getCachedGeoip: (ips) => {
+      if (ips.length === 0) return Promise.resolve([])
+      const placeholders = ips.map(() => "?").join(",")
+      const rows = db.prepare(`SELECT ip, country FROM geoip_cache WHERE ip IN (${placeholders})`).all(...ips) as GeoipRow[]
+      return Promise.resolve(rows)
+    },
+    upsertGeoip: (rows) => {
+      if (rows.length === 0) return Promise.resolve()
+      const stmt = db.prepare("INSERT OR REPLACE INTO geoip_cache (ip, country, fetched_at) VALUES (?, ?, ?)")
+      const now = Date.now()
+      const tx = db.transaction((batch: GeoipRow[]) => {
+        for (const r of batch) stmt.run(r.ip, r.country, now)
+      })
+      tx(rows)
+      return Promise.resolve()
+    },
   }
 }
 
@@ -153,6 +184,23 @@ function createD1Adapter(d1: D1Database): DbAdapter {
       const { results } = await d1.prepare("SELECT * FROM scans WHERE domain=? ORDER BY started_at DESC")
         .bind(domain).all<ScanRow>()
       return results
+    },
+
+    getCachedGeoip: async (ips) => {
+      if (ips.length === 0) return []
+      const placeholders = ips.map(() => "?").join(",")
+      const { results } = await d1.prepare(`SELECT ip, country FROM geoip_cache WHERE ip IN (${placeholders})`)
+        .bind(...ips).all<GeoipRow>()
+      return results
+    },
+
+    upsertGeoip: async (rows) => {
+      if (rows.length === 0) return
+      const now = Date.now()
+      const stmts = rows.map((r) =>
+        d1.prepare("INSERT OR REPLACE INTO geoip_cache (ip, country, fetched_at) VALUES (?, ?, ?)").bind(r.ip, r.country, now)
+      )
+      await d1.batch(stmts)
     },
   }
 }

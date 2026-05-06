@@ -5,11 +5,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
+	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oschwald/geoip2-golang"
 )
+
+const geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
+
+var (
+	geoipOnce   sync.Once
+	geoipReader *geoip2.Reader
+	geoipErr    error
+)
+
+// loadGeoipReader opens the bundled MaxMind GeoLite2-Country.mmdb once. If the
+// file is missing the reader stays nil; callers must handle that as "no result".
+func loadGeoipReader() (*geoip2.Reader, error) {
+	geoipOnce.Do(func() {
+		if _, statErr := os.Stat(geoipDbPath); statErr != nil {
+			return // reader stays nil; not a hard error
+		}
+		geoipReader, geoipErr = geoip2.Open(geoipDbPath)
+	})
+	return geoipReader, geoipErr
+}
 
 // --- Subfinder ---
 type SubfinderInput struct {
@@ -74,6 +98,21 @@ type UncoverInput struct {
 type UncoverOutput struct {
 	Results []string `json:"results" jsonschema:"The JSON output from uncover containing exposed IPs, ports, and source engines"`
 	Error   string   `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
+}
+
+// --- GEOIP ---
+type LookupGeoipInput struct {
+	Ips string `json:"ips" jsonschema:"Comma-separated list of IPv4/IPv6 addresses to look up (e.g., 8.8.8.8,1.1.1.1)"`
+}
+
+type GeoipEntry struct {
+	Ip      string `json:"ip"`
+	Country string `json:"country"`
+}
+
+type LookupGeoipOutput struct {
+	Results []GeoipEntry `json:"results" jsonschema:"One entry per resolvable IP. Empty Country means no match in the local mmdb (or the mmdb file is missing)."`
+	Error   string       `json:"error,omitempty" jsonschema:"Any error message encountered during lookup"`
 }
 
 func HandleSubfinder(ctx context.Context, req *mcp.CallToolRequest, input SubfinderInput) (*mcp.CallToolResult, SubfinderOutput, error) {
@@ -186,6 +225,37 @@ func HandleAsnmap(ctx context.Context, req *mcp.CallToolRequest, input AsnmapInp
 	return nil, AsnmapOutput{Results: results}, nil
 }
 
+func HandleLookupGeoip(ctx context.Context, req *mcp.CallToolRequest, input LookupGeoipInput) (*mcp.CallToolResult, LookupGeoipOutput, error) {
+	reader, err := loadGeoipReader()
+	if err != nil {
+		return nil, LookupGeoipOutput{Error: fmt.Sprintf("failed to open GeoLite2 db: %v", err)}, nil
+	}
+
+	results := []GeoipEntry{}
+	if reader == nil {
+		// mmdb not mounted — return empty so the caller can degrade gracefully.
+		return nil, LookupGeoipOutput{Results: results}, nil
+	}
+
+	for _, raw := range strings.Split(input.Ips, ",") {
+		ip := strings.TrimSpace(raw)
+		if ip == "" {
+			continue
+		}
+		parsed := net.ParseIP(ip)
+		if parsed == nil {
+			continue
+		}
+		record, lookupErr := reader.Country(parsed)
+		if lookupErr != nil || record.Country.IsoCode == "" {
+			continue
+		}
+		results = append(results, GeoipEntry{Ip: ip, Country: record.Country.IsoCode})
+	}
+
+	return nil, LookupGeoipOutput{Results: results}, nil
+}
+
 func HandleUncover(ctx context.Context, req *mcp.CallToolRequest, input UncoverInput) (*mcp.CallToolResult, UncoverOutput, error) {
 	query := fmt.Sprintf("ssl:\"%s\"", input.Domain)
 	cmd := exec.CommandContext(ctx, "uncover", "-q", query, "-json", "-silent", "-timeout", "30")
@@ -239,6 +309,11 @@ func main() {
 		Name:        "search_hosts",
 		Description: "Search internet scan databases (Shodan, Censys, FOFA) for exposed IPs and open ports associated with a domain using SSL certificate queries (uncover).",
 	}, HandleUncover)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "lookup_geoip",
+		Description: "Resolve IP addresses to ISO 3166-1 alpha-2 country codes using a bundled MaxMind GeoLite2-Country database mounted at /root/.config/hopper-recon/GeoLite2-Country.mmdb. Pure offline, no external network calls.",
+	}, HandleLookupGeoip)
 
 	log.Println("Hopper Recon MCP Server starting on stdio...")
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {

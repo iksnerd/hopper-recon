@@ -17,3 +17,9 @@ CREATE INDEX IF NOT EXISTS idx_scans_started     ON scans(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_scans_http_status ON scans(http_status);
 CREATE INDEX IF NOT EXISTS idx_scans_cert_expiry ON scans(cert_expiry);
 CREATE INDEX IF NOT EXISTS idx_scans_tech_stack  ON scans(tech_stack);
+
+CREATE TABLE IF NOT EXISTS geoip_cache (
+    ip         TEXT PRIMARY KEY,
+    country    TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
+);
