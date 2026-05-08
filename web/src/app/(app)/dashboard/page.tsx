@@ -261,7 +261,7 @@ function DashboardInner() {
                 variant="outline"
                 onClick={() => startScan()}
                 disabled={!domain.trim() || (!!scan && !allDone)}
-                className="rounded-none border-terminal-green/40 bg-card-inset text-terminal-green hover:text-background hover:bg-terminal-green hover:border-terminal-green shadow-none ring-0 focus-visible:ring-0 active:translate-y-0 h-8 px-4 text-body font-bold tracking-widest uppercase font-mono shrink-0 disabled:opacity-30"
+                className="rounded-none border-terminal-green/40 bg-card-inset text-terminal-green hover:text-terminal-green hover:bg-terminal-green/10 hover:border-terminal-green shadow-none ring-0 focus-visible:ring-0 active:translate-y-0 h-8 px-4 text-body font-bold tracking-widest uppercase font-mono shrink-0 disabled:opacity-30"
               >
                 {scan && !allDone
                   ? <span className="cursor-blink inline-block w-[1ch]">█</span>
