@@ -15,8 +15,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseUncover,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type UncoverResult,
+  parseSubdomains, parseDns, parseTls, parseHttp,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult,
 } from "@/lib/scan-parser"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
@@ -87,7 +87,6 @@ interface ParsedDomain {
   dns: DnsResult | null
   tls: TlsResult | null
   http: HttpResult | null
-  uncover: UncoverResult | null
 }
 
 function parseDomain(summary: DomainSummary): ParsedDomain {
@@ -99,19 +98,17 @@ function parseDomain(summary: DomainSummary): ParsedDomain {
     } catch { return null }
   }
 
-  const subRaw     = get("passive_subdomains")
-  const dnsRaw     = get("resolve_dns")
-  const tlsRaw     = get("fetch_tls_cert")
-  const httpRaw    = get("probe_http")
-  const uncoverRaw = get("search_hosts")
+  const subRaw  = get("passive_subdomains")
+  const dnsRaw  = get("resolve_dns")
+  const tlsRaw  = get("fetch_tls_cert")
+  const httpRaw = get("probe_http")
 
   return {
     summary,
-    subdomains: subRaw     ? parseSubdomains({ results: subRaw })  : null,
-    dns:        dnsRaw     ? parseDns({ results: dnsRaw })         : null,
-    tls:        tlsRaw     ? parseTls({ results: tlsRaw })         : null,
-    http:       httpRaw    ? parseHttp({ results: httpRaw })       : null,
-    uncover:    uncoverRaw ? parseUncover({ results: uncoverRaw }) : null,
+    subdomains: subRaw  ? parseSubdomains({ results: subRaw })  : null,
+    dns:        dnsRaw  ? parseDns({ results: dnsRaw })         : null,
+    tls:        tlsRaw  ? parseTls({ results: tlsRaw })         : null,
+    http:       httpRaw ? parseHttp({ results: httpRaw })       : null,
   }
 }
 
@@ -145,11 +142,11 @@ export default function HistoryPage() {
 
   const [geoCountries, setGeoCountries] = React.useState<{ code: string; count: number }[]>([])
 
-  const ipKey = domains?.map((d) => d.dns?.a?.join(",") ?? "").join("|") ?? ""
+  const ipKey = domains?.map((d) => [...(d.dns?.a ?? []), ...(d.dns?.aaaa ?? [])].join(",")).join("|") ?? ""
 
   React.useEffect(() => {
     if (!ipKey) return
-    const ips = (domains ?? []).flatMap((d) => d.dns?.a ?? []).filter(Boolean)
+    const ips = (domains ?? []).flatMap((d) => [...(d.dns?.a ?? []), ...(d.dns?.aaaa ?? [])]).filter(Boolean)
     if (!ips.length) return
     fetch("/api/geoip", {
       method: "POST",
@@ -252,7 +249,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
   onToggle: () => void
   onRescan: () => void
 }) {
-  const { summary, subdomains, dns, tls, http, uncover } = data
+  const { summary, subdomains, dns, tls, http } = data
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = React.useState(false)
 
@@ -519,25 +516,6 @@ function DomainCard({ data, open, onToggle, onRescan }: {
                     </div>
                   </div>
                 )}
-              </DetailPanel>
-            )}
-            {/* Uncover */}
-            {uncover && uncover.entries.length > 0 && (
-              <DetailPanel label={`// EXPOSED HOSTS [${uncover.entries.length}]`} className="md:col-span-2">
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {uncover.sourceCounts.map(({ source, count }) => (
-                    <DataChip key={source} className="px-1.5">{source} {count}</DataChip>
-                  ))}
-                </div>
-                <div className="space-y-px max-h-[120px] overflow-y-auto">
-                  {uncover.entries.map((e, i) => (
-                    <div key={i} className="flex items-center gap-3 px-1 py-0.5 hover:bg-card transition-colors duration-100">
-                      <span className="font-mono text-data text-foreground tabular-nums w-[90px] shrink-0">{e.ip}</span>
-                      <span className="font-mono text-data text-muted-foreground-2 tabular-nums w-[40px] shrink-0">{e.port}</span>
-                      <span className="font-mono text-data text-muted-foreground-3 truncate flex-1">{e.host || e.url}</span>
-                    </div>
-                  ))}
-                </div>
               </DetailPanel>
             )}
           </div>

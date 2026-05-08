@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Radar, History, SlidersHorizontal, type LucideIcon } from "lucide-react"
+import { Radar, History, SlidersHorizontal, Info, type LucideIcon } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +21,7 @@ const NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "dashboard", href: "/dashboard", icon: Radar },
   { label: "history",   href: "/history",   icon: History },
   { label: "settings",  href: "/settings",  icon: SlidersHorizontal },
+  { label: "about",     href: "/about",     icon: Info },
 ]
 
 export function AppSidebar() {

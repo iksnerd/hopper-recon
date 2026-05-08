@@ -1,0 +1,55 @@
+# Litestream — continuous SQLite replication for /data/scans.db.
+#
+# Default: local file replica into the litestream-backup named volume so
+# `docker compose up` works out of the box with zero credentials. For real
+# DR, uncomment one of the cloud replica blocks below and supply the
+# matching env vars (see .env.example or the README).
+#
+# Litestream reads the SQLite WAL directly from outside the engine process,
+# so no engine changes are required. WAL mode is already enabled in
+# engine/db.go (PRAGMA journal_mode=WAL).
+
+dbs:
+  - path: /data/scans.db
+    replicas:
+      - type: file
+        path: /backups/scans
+        retention: 168h         # 7 days of WAL history
+        snapshot-interval: 24h
+
+      # ── Cloudflare R2 (S3-compatible) ─────────────────────────────
+      # - type: s3
+      #   bucket: ${LITESTREAM_BUCKET}
+      #   path: engine
+      #   endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      #   region: auto
+      #   access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+      #   secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+      #   retention: 168h
+      #   snapshot-interval: 24h
+
+      # ── AWS S3 ────────────────────────────────────────────────────
+      # - type: s3
+      #   bucket: ${LITESTREAM_BUCKET}
+      #   path: engine
+      #   region: ${AWS_REGION}
+      #   access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+      #   secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+      #   retention: 168h
+      #   snapshot-interval: 24h
+
+      # ── Azure Blob Storage ────────────────────────────────────────
+      # - type: abs
+      #   account-name: ${AZURE_STORAGE_ACCOUNT}
+      #   account-key:  ${AZURE_STORAGE_KEY}
+      #   bucket: ${LITESTREAM_BUCKET}
+      #   path: engine
+      #   retention: 168h
+      #   snapshot-interval: 24h
+
+      # ── Google Cloud Storage ──────────────────────────────────────
+      # - type: gcs
+      #   bucket: ${LITESTREAM_BUCKET}
+      #   path: engine
+      #   retention: 168h
+      #   snapshot-interval: 24h

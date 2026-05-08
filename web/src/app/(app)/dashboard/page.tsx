@@ -10,8 +10,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseUncover,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type UncoverResult,
+  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult,
 } from "@/lib/scan-parser"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
@@ -29,6 +29,7 @@ import { PageHeader } from "@/components/recon/page-header"
 import { DataChip } from "@/components/recon/data-chip"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { CopyButton } from "@/components/recon/copy-button"
+import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { CopyableText } from "@/components/ui/copyable-text"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
@@ -40,7 +41,8 @@ const TOOLS = [
   { id: "resolve_dns",        label: "DNS" },
   { id: "fetch_tls_cert",     label: "TLS" },
   { id: "probe_http",         label: "HTTP" },
-  { id: "search_hosts",       label: "EXPOSE" },
+  { id: "check_cdn",          label: "CDN" },
+  { id: "find_urls",          label: "URLS" },
 ] as const
 
 type ToolId = (typeof TOOLS)[number]["id"]
@@ -55,7 +57,8 @@ interface ScanState {
   dns: DnsResult | null
   tls: TlsResult | null
   http: HttpResult | null
-  uncover: UncoverResult | null
+  cdn: CdnResult | null
+  urls: UrlsResult | null
   errors: Partial<Record<ToolId, string>>
 }
 
@@ -64,7 +67,8 @@ const EMPTY_STATES: Record<ToolId, ToolState> = {
   resolve_dns: "loading",
   fetch_tls_cert: "loading",
   probe_http: "loading",
-  search_hosts: "loading",
+  check_cdn: "loading",
+  find_urls: "loading",
 }
 
 function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
@@ -81,7 +85,8 @@ function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
   if (id === "resolve_dns"        && scan.dns)        return ` [${scan.dns.a.length} IP${scan.dns.a.length === 1 ? "" : "s"}]`
   if (id === "fetch_tls_cert"     && scan.tls)        return ` [${scan.tls.daysLeft}d]`
   if (id === "probe_http"         && scan.http)       return ` [${scan.http.status_code}]`
-  if (id === "search_hosts"       && scan.uncover)    return ` [${scan.uncover.entries.length}]`
+  if (id === "check_cdn"          && scan.cdn)        return scan.cdn.entries.length ? ` [${scan.cdn.entries.length}]` : ""
+  if (id === "find_urls"          && scan.urls)       return ` [${scan.urls.entries.length}]`
   return ""
 }
 
@@ -147,9 +152,9 @@ function DashboardInner() {
     const initial: ScanState = {
       target,
       states: { ...EMPTY_STATES },
-      startedAt: { passive_subdomains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, search_hosts: t0 },
+      startedAt: { passive_subdomains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0 },
       durations: {},
-      subdomains: null, dns: null, tls: null, http: null, uncover: null, errors: {},
+      subdomains: null, dns: null, tls: null, http: null, cdn: null, urls: null, errors: {},
     }
     setScan(initial)
 
@@ -170,7 +175,8 @@ function DashboardInner() {
               ...(tool === "resolve_dns"        ? { dns: parseDns(data) }               : {}),
               ...(tool === "fetch_tls_cert"     ? { tls: parseTls(data) }               : {}),
               ...(tool === "probe_http"         ? { http: parseHttp(data) }             : {}),
-              ...(tool === "search_hosts"       ? { uncover: parseUncover(data) }       : {}),
+              ...(tool === "check_cdn"          ? { cdn: parseCdn(data) }               : {}),
+              ...(tool === "find_urls"          ? { urls: parseUrls(data) }             : {}),
             }
           })
         })
@@ -230,7 +236,7 @@ function DashboardInner() {
   return (
     <div className="min-h-screen font-mono text-foreground scanlines">
       <PageHeader
-        segments={["DASHBOARD", scan?.target]}
+        segments={[{ label: "DASHBOARD", href: "/dashboard" }, scan?.target]}
         right={
           <ScanStatusPill
             status={scanStatus}
@@ -351,9 +357,12 @@ function DashboardInner() {
               </ReconCardContent>
             </ReconCard>
 
-            {/* Results: two-column at lg (findings left, tabs right) */}
-            <div className="lg:grid lg:grid-cols-[300px_1fr] lg:gap-6 lg:items-start">
-              <div>
+            {/* Results: two-column at lg (findings left, tabs right).
+                minmax(0,1fr) on the right column lets it shrink below the
+                tabs' / charts' intrinsic width — without it, wide content
+                pushes the whole page past the viewport. */}
+            <div className="lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-6 lg:items-start">
+              <div className="min-w-0">
                 {(scan.subdomains || scan.dns || scan.tls || scan.http) && (
                   <FindingsStrip
                     subs={scan.subdomains}
@@ -364,7 +373,7 @@ function DashboardInner() {
                 )}
               </div>
 
-              <div>
+              <div className="min-w-0">
             {/* Results tabs */}
             <Tabs defaultValue="passive_subdomains">
               <TabsList className="bg-card border border-border rounded-none w-full justify-start h-auto p-0 gap-0 overflow-x-auto">
@@ -435,7 +444,10 @@ function DashboardInner() {
                           )}
                         </Panel>
                       </div>
-                      <Panel label={`// ALL SUBDOMAINS [${scan.subdomains.findings.length}]`}>
+                      <Panel
+                        label={`// ALL SUBDOMAINS [${scan.subdomains.findings.length}]`}
+                        action={<ToolSourceLink name="subfinder" url="https://github.com/projectdiscovery/subfinder" />}
+                      >
                         {scan.subdomains.findings.length === 0 ? (
                           <p className="text-body text-muted-foreground py-6">no subdomains found — api keys may expand coverage</p>
                         ) : (
@@ -475,7 +487,10 @@ function DashboardInner() {
                           </BarChart>
                         </ResponsiveContainer></ChartBoundary>
                       </Panel>
-                      <Panel label={"// RECORDS"}>
+                      <Panel
+                        label={"// RECORDS"}
+                        action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
+                      >
                         <Table className="text-body">
                           <TableBody>
                             <DataRow label="STATUS" value={`[${scan.dns.status_code}]`} />
@@ -520,7 +535,10 @@ function DashboardInner() {
                       <Panel label={"// VALIDITY WINDOW"}>
                         <CertValidityBar tls={scan.tls} />
                       </Panel>
-                      <Panel label={"// CERTIFICATE"}>
+                      <Panel
+                        label={"// CERTIFICATE"}
+                        action={<ToolSourceLink name="tlsx" url="https://github.com/projectdiscovery/tlsx" />}
+                      >
                         {(scan.tls.wildcard || scan.tls.expired || scan.tls.self_signed) && (
                           <div className="flex flex-wrap gap-2 mb-3">
                             <TlsHardeningBadge label="WILDCARD" flag={scan.tls.wildcard} />
@@ -548,7 +566,10 @@ function DashboardInner() {
               <TabsContent value="probe_http" className="pt-4 mt-0">
                 <ToolPanel state={scan.states.probe_http} error={scan.errors.probe_http}>
                   {scan.http && (
-                    <Panel label={"// HTTP PROBE"}>
+                    <Panel
+                      label={"// HTTP PROBE"}
+                      action={<ToolSourceLink name="httpx" url="https://github.com/projectdiscovery/httpx" />}
+                    >
                       <div className="flex items-center gap-3 mb-3">
                         <RedirectChain codes={scan.http.chain_status_codes} />
                         <span className="text-body text-muted-foreground truncate flex-1">{scan.http.final_url || scan.http.url}</span>
@@ -603,56 +624,75 @@ function DashboardInner() {
                   )}
                 </ToolPanel>
               </TabsContent>
-              {/* Expose / Uncover */}
-              <TabsContent value="search_hosts" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.search_hosts} error={scan.errors.search_hosts}>
-                  {scan.uncover && (
-                    <div className="space-y-4">
-                      {scan.uncover.entries.length === 0 ? (
-                        <Panel label="// EXPOSED HOSTS">
-                          <p className="text-body text-muted-foreground py-6">no results — add API keys to <span className="font-mono">~/.config/uncover/provider-config.yaml</span> for broader coverage</p>
-                        </Panel>
+
+              {/* CDN attribution */}
+              <TabsContent value="check_cdn" className="pt-4 mt-0">
+                <ToolPanel state={scan.states.check_cdn} error={scan.errors.check_cdn}>
+                  {scan.cdn && (
+                    <Panel
+                      label={`// CDN ATTRIBUTION [${scan.cdn.entries.length}]`}
+                      action={<ToolSourceLink name="cdncheck" url="https://github.com/projectdiscovery/cdncheck" />}
+                    >
+                      {scan.cdn.entries.length === 0 ? (
+                        <p className="text-body text-muted-foreground py-6">
+                          no CDN, cloud, or WAF attribution detected for resolved IPs — target may be on its own infrastructure
+                        </p>
                       ) : (
-                        <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Panel label="// OPEN PORTS">
-                              <ChartBoundary label="ports">
-                                <ResponsiveContainer width="100%" height={200}>
-                                  <BarChart data={scan.uncover.portCounts} layout="vertical" margin={{ left: 8 }}>
-                                    <XAxis type="number" hide />
-                                    <YAxis type="category" dataKey="port" width={50} tick={CHART_TICK} />
-                                    <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
-                                    <Bar dataKey="count" radius={0}>
-                                      {scan.uncover.portCounts.map((_, i) => (
-                                        <Cell key={i} fill={CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]} />
-                                      ))}
-                                    </Bar>
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </ChartBoundary>
-                            </Panel>
-                            <Panel label="// SOURCES">
-                              <div className="flex flex-wrap gap-1 pt-1">
-                                {scan.uncover.sourceCounts.map(({ source, count }) => (
-                                  <DataChip key={source}>{source} {count}</DataChip>
-                                ))}
-                              </div>
-                            </Panel>
-                          </div>
-                          <Panel label={`// HOSTS [${scan.uncover.entries.length}]`}>
-                            <div className="space-y-px max-h-[320px] overflow-y-auto">
-                              {scan.uncover.entries.map((e, i) => (
-                                <div key={i} className="flex items-center gap-3 px-1 py-1 hover:bg-card-hover transition-colors duration-100">
-                                  <span className="font-mono text-data text-foreground tabular-nums w-[100px] shrink-0">{e.ip}</span>
-                                  <span className="font-mono text-data text-muted-foreground-2 tabular-nums w-[48px] shrink-0">{e.port}</span>
-                                  <span className="font-mono text-data text-muted-foreground-3 truncate flex-1">{e.host || e.url}</span>
-                                  <DataChip className="shrink-0">{e.source}</DataChip>
-                                </div>
-                              ))}
+                        <div className="space-y-px">
+                          {scan.cdn.entries.map((e, i) => (
+                            <div key={`${e.ip}-${i}`} className="flex items-center gap-3 px-1 py-1 hover:bg-card-hover transition-colors duration-100">
+                              <span className="font-mono text-data text-foreground tabular-nums w-[140px] shrink-0">{e.ip}</span>
+                              <DataChip className="shrink-0 uppercase">{e.kind}</DataChip>
+                              <span className="font-mono text-data text-muted-foreground-2 flex-1">{e.name}</span>
                             </div>
-                          </Panel>
-                        </>
+                          ))}
+                        </div>
                       )}
+                    </Panel>
+                  )}
+                </ToolPanel>
+              </TabsContent>
+
+              {/* Historical URLs */}
+              <TabsContent value="find_urls" className="pt-4 mt-0">
+                <ToolPanel state={scan.states.find_urls} error={scan.errors.find_urls}>
+                  {scan.urls && (
+                    <div className="space-y-4">
+                      {scan.urls.sourceCounts.length > 0 && (
+                        <Panel label="// SOURCES">
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {scan.urls.sourceCounts.map(({ source, count }) => (
+                              <DataChip key={source}>{source} {count}</DataChip>
+                            ))}
+                          </div>
+                        </Panel>
+                      )}
+                      {scan.urls.hostCounts.length > 1 && (
+                        <Panel label={`// BY HOST [${scan.urls.hostCounts.length}]`}>
+                          <div className="flex flex-wrap gap-1 pt-1 max-h-[120px] overflow-y-auto">
+                            {scan.urls.hostCounts.map(({ host, count }) => (
+                              <DataChip key={host}>{host} {count}</DataChip>
+                            ))}
+                          </div>
+                        </Panel>
+                      )}
+                      <Panel
+                        label={`// ALL URLS [${scan.urls.entries.length}]`}
+                        action={<ToolSourceLink name="urlfinder" url="https://github.com/projectdiscovery/urlfinder" />}
+                      >
+                        {scan.urls.entries.length === 0 ? (
+                          <p className="text-body text-muted-foreground py-6">no historical URLs found in passive sources</p>
+                        ) : (
+                          <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                            {scan.urls.entries.map((e, i) => (
+                              <div key={`${e.url}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                                <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.url}</span>
+                                <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{e.source}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </Panel>
                     </div>
                   )}
                 </ToolPanel>

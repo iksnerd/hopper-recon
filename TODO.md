@@ -63,12 +63,13 @@ _(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
 - **Self-hosted does NOT require Clerk** (Clerk is cloud-only, breaks self-hosting). OSS uses Auth.js (OIDC/SAML/email magic link, all OSS) with `AUTH_MODE=none|email|oidc|saml` env switch — `none` for "behind a VPN" simple case.
 
 ### v0.1.0 — OSS public release
-- [ ] **License decision** — recommended BSL 1.1 with 4-year conversion to Apache 2.0; "Additional Use Grant" for internal/non-commercial use
-- [ ] `LICENSE` at repo root
+- [x] **License decision** — ship MIT (already in `LICENSE`). BSL 1.1 was considered for cloud strip-mining protection; rejected because (a) niche security tooling is not a hyperscaler target, (b) MIT maximises adoption which is the real v0.1 risk, (c) future SaaS-only code can land in the private `hopper-recon-cloud` repo under whatever license we want without touching OSS history. If a competitor materialises, relicense *future* OSS code under BSL behind a CLA — past tags stay MIT.
+- [x] `LICENSE` at repo root (MIT, present)
 - [ ] `SECURITY.md` — responsible disclosure, contact email
 - [ ] `CODE_OF_CONDUCT.md` — Contributor Covenant
 - [ ] `CONTRIBUTING.md` — PR style, dev setup, commit conventions
-- [ ] `README.md` rewrite — what it does, 30-second install, screenshots from new UI, "authorized use only" disclaimer, list of tools, scope/limits, k8s install in first 3 sections
+- [ ] `README.md` rewrite — what it does, 30-second install, screenshots from new UI, **prominent authorized-use disclaimer block at the top** (not buried), outbound-traffic footprint table per scan (DNS queries / TLS handshake / HTTP GET / OSINT API calls — so users know exactly what they're sending), list of tools, scope/limits, k8s install in first 3 sections
+- [ ] `SECURITY.md` content must include explicit authorized-use posture: "this tool sends DNS/TLS/HTTP traffic to targets you supply. You are the operator. Run only against assets you own or are authorized to test. The maintainers do not consent to use against unauthorized third-party infrastructure." (Sets legal tone + something to point at.)
 - [ ] `.env.example` — every env var documented
 - [ ] `CHANGELOG.md` — start at v0.1.0
 - [ ] `docker-compose.yml` — engine + web + SQLite volume + provider-config volume; `docker compose up` to a working install
@@ -79,6 +80,21 @@ _(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
 - [ ] Trademark research on "hopper-recon" (register if going SaaS later)
 - [ ] Tag v0.1.0 + GitHub release notes
 - [ ] Soft launch: r/netsec, r/AskNetsec, HN Show, projectdiscovery Discord, Anthropic/MCP-aware audiences
+
+### v0.1.0 — Abuse mitigations (must ship before public release)
+
+These are not "nice to have" — they ship with v0.1 because they're cheap, they set the operator-relations tone, and they harden the tool against the most obvious reputational risk: a sloppy first impression where someone runs hopper-recon at scale and a target's blue team can't tell who/what hit them.
+
+Today's outbound footprint per scan is ~5 DNS queries + 1 TLS handshake + 1 HTTP GET against the target — equivalent to one browser tab. The risk is not the current default, it's the planned "scan all discovered subdomains" feature multiplying that by 50–500.
+
+- [ ] **Custom User-Agent on httpx** — `hopper-recon/0.1.0 (+https://github.com/iksnerd/hopper-recon)`. Two-line change: pass `-H "User-Agent: ..."` to httpx in `engine/main.go:218`. Lets target operators attribute traffic and request exclusion. Industry norm for security tooling.
+- [ ] **Hardcoded blocklist baked into the engine** — refuse active probes (`probe_http`, `fetch_tls_cert`, `search_hosts`, `map_asn`) against `*.gov`, `*.mil`, `*.gouv.fr`, `*.gov.uk`, `*.go.jp`, `*.gc.ca`, `*.gov.au`, ICANN root domains, NATO/UN/IANA-reserved ranges, and a small list of obvious critical-infra (financial regulators: SEC, FINRA, FCA, BaFin, MAS, etc.). Override requires explicit `HOPPER_OVERRIDE_BLOCKLIST=true` env *plus* a non-empty `HOPPER_BLOCKLIST_OVERRIDE_REASON` written to the audit log. Block at the engine layer, not the web layer, so direct MCP callers get the same protection. _Was scoped to v0.3 — promoted to v0.1._
+- [ ] **Per-target cooldown** — refuse `/api/scan` if the same `(target, tool)` was scanned in the last 60 s; return 429 with a `Retry-After` header. Single SQL check in `web/src/app/api/scan/route.ts` against the existing `scans` table. Stops mash-the-button accidents and trivial automated abuse.
+- [ ] **Audit log table — always on, even with no auth.** New `audit_log` table: `(id, ts, source_ip, user_agent, tool, target, decision: 'allowed'|'blocked', reason)`. Middleware on `/api/scan` writes a row before invoking the engine, and on every block (cooldown / blocklist / off-scope). Operator can `tail -f` audit logs to investigate. _Was scoped to v0.3 — promoted to v0.1; auth integration in v0.3 just adds `user_id` column._
+- [ ] **Optional `ALLOWED_DOMAINS` env / `assets.yaml` scope config** — when set, off-scope scans are blocked with a clear UI error. When unset, behaviour matches today (scan anything). `STRICT_SCOPE=true` is implicit when `ALLOWED_DOMAINS` is set. _Was scoped to v0.3 — promoted to v0.1; doesn't need auth to be useful._
+- [ ] **First-boot warning banner in the UI** — when neither `ALLOWED_DOMAINS` nor an auth mode is configured, show a persistent dismissable banner at the top of dashboard + history: "Running with no authentication and no scope filter. Operate only against domains you own or have written authorization for." Acknowledgement stored per-install (single row in a `settings` table) so it's not nagging every page load forever, but visible until clicked.
+- [ ] **`/api/scan` response headers** — add `X-Hopper-Recon: authorized-use-only` and `Server: hopper-recon/0.1.0` so any reverse-proxy/CDN logs identify the tool clearly.
+- [ ] Audit-log viewer in `/admin` is deferred to v0.3 (needs auth to expose) — for v0.1, ops read the table via SQLite CLI or by mounting the volume. That's enough.
 
 ### v0.1.0 — Production deployment package (lean, compose-first)
 
@@ -97,29 +113,55 @@ _(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
 - [ ] Verify `docker compose up` works clean from a fresh checkout
 - [ ] Helm chart, Kustomize overlays, NetworkPolicy, ServiceMonitor — _deferred; revisit at v0.2.0 once engine refactor lands and only if 5+ issues filed_
 
-### v0.2.0 — Engine refactor (engine owns SQLite, MCP-native server)
-- [ ] **Engine: add `serve` subcommand** for long-running HTTP/MCP mode (Streamable HTTP transport from Go MCP SDK)
-- [ ] Engine: optional persistent SQLite via `--db /data/scans.db` flag (or `HOPPER_DB_PATH` env)
-- [ ] Engine: keep current stdio one-shot mode for back-compat (SaaS uses it)
-- [ ] Engine: new MCP query tools — `list_scans`, `list_domain_summaries`, `get_scans_by_domain`, `get_scan_by_id`, `delete_scan`, `purge_old_scans`
-- [ ] Engine: schema migrations system (replace duplicated `schema.sql` + inline SQL in `db.ts` with versioned migration files)
-- [ ] Engine: graceful shutdown, healthcheck endpoint, structured logs
-- [ ] Web: new `lib/engine.ts` — ~30-line HTTP/MCP client (`engineClient.callTool()`, typed wrappers)
-- [ ] Web: `HOPPER_DB_MODE=local|d1|engine` env switch in `db.ts`; new `EngineDBAdapter` proxies reads to engine
-- [ ] Web: API route handlers swap to engine client when `HOPPER_DB_MODE=engine` — URLs and response shapes unchanged so TanStack Query keeps working
-- [ ] Web: handle "engine offline" with a clear empty state in UI
-- [ ] Optional per-page: upgrade to Server Components with `initialData` for first-paint wins
-- [ ] `docker-compose.yml` updated — engine on `:8080`, web's `ENGINE_URL=http://engine:8080`
+### v0.2.0 — Engine refactor (engine owns SQLite + tools, web is dumb client)
+
+**Decisions baked in (this session, 2026-05-08):**
+- No migration story for existing dev DBs — we're the only users, fresh start. Engine boots a new SQLite, web's `web/data/recon.db` is abandoned.
+- **REST, not MCP, for the dashboard ↔ engine link.** MCP is for AI agents discovering tools; the dashboard knows the schema. Plain JSON over HTTP is simpler to debug and document.
+- **Drop the SQLite path from the web entirely.** `createSqliteAdapter()` in `db.ts` is deleted, not preserved as a fallback. `HOPPER_DB_MODE` becomes `engine|d1` only.
+- **Drop `docker-mcp.ts` from the web.** Web no longer spawns docker per scan — that's the architectural prize. Web → engine is plain HTTP, web container no longer needs the docker socket. Doubles the deployable platform list.
+- Engine retains stdio MCP mode (default `docker run -i hopper-recon`) for AI agents (Claude Desktop, Cline, etc.) connecting directly. `hopper-recon serve` adds long-running HTTP for the dashboard.
+- No migrations system in v0.2 — `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE` ladder is enough for one schema. Real migrations land in v0.3 when a second deployable shape exists.
+- SQLite Go driver: **`modernc.org/sqlite`** (pure Go, trivial multi-arch). Recon write volume is too low to need CGo perf.
+
+**Engine:**
+- [ ] Add `serve` subcommand: long-running HTTP server on `:8080`. Default (no args) keeps current stdio MCP for AI-agent compatibility.
+- [ ] Open SQLite at path from `--db` flag or `HOPPER_DB_PATH` env (default `/data/scans.db`). WAL mode. Run sweepStaleScans on boot.
+- [ ] REST endpoints (the full DbAdapter surface, plus the run-tool endpoint that replaces docker spawning):
+  - `POST /scan` — runs tool, persists row, returns final state in one transaction (replaces web's insert→run→complete dance)
+  - `GET /scans?domain=&limit=` — list (covers both `getRecentScans` and `getScansByDomain`)
+  - `DELETE /scans/{id}` — delete
+  - `GET /geoip?ips=a,b,c` — cache lookup
+  - `POST /geoip` — upsert batch
+  - `GET /healthz`, `GET /readyz`
+- [ ] Keep MCP recon tools available at `POST /mcp` (Streamable HTTP) for external AI agents that want to connect to a long-running engine.
+- [ ] Split `engine/main.go` into `main.go` (entrypoint + mode dispatch) + `tools.go` (existing recon handlers) + `db.go` (SQLite + queries) + `server.go` (HTTP routes). Resolves the existing followup-list refactor.
+- [ ] Graceful shutdown on SIGTERM, structured JSON logs to stdout.
+
+**Web:**
+- [ ] Delete `createSqliteAdapter()` and the `better-sqlite3` dependency. Delete `web/data/recon.db` and `.gitignore` it.
+- [ ] Delete `lib/docker-mcp.ts` and `lib/executor.ts` (or stub executor for D1 path only).
+- [ ] New `lib/engine-client.ts` — thin fetch wrapper. ~80 LOC.
+- [ ] `HOPPER_DB_MODE=engine` is the default; `d1` auto-detected when on Cloudflare. `lib/db.ts` keeps only the D1 adapter + a new `createEngineAdapter(baseUrl)` that mirrors `DbAdapter` over fetch.
+- [ ] `/api/scan` route shrinks to a thin proxy: validate input, write audit-log row, forward to engine `POST /scan`, return the response.
+- [ ] Other `/api/scans/*` routes call engine REST via the adapter — URLs and response shapes unchanged so TanStack Query keeps working.
+- [ ] Handle "engine offline" with a clear empty state in UI.
+- [ ] Optional per-page: upgrade to Server Components with `initialData` for first-paint wins.
+
+**Compose / docs:**
+- [ ] `docker-compose.yml` at repo root — engine on `:8080` with named `data` volume, web with `ENGINE_URL=http://engine:8080`. Web no longer needs `/var/run/docker.sock`.
+- [ ] DEPLOY.md notes the `web/data/recon.db` is abandoned — fresh DB on first compose-up.
 
 ### v0.3.0 — Self-hosted auth, audit, scope
+
+> Note: hardcoded blocklist, audit log table, and `ALLOWED_DOMAINS` scope config were promoted to v0.1.0 (see "Abuse mitigations"). v0.3 layers identity + UI on top of those primitives.
+
 - [ ] **Auth.js** integration (OIDC + email magic-link providers) — OSS, no external service required
 - [ ] `AUTH_MODE` env: `none` (behind VPN — show banner), `email` (magic link), `oidc`, `saml`
 - [ ] First-boot admin user creation via `ADMIN_EMAIL` env
-- [ ] `/admin` route — users list, audit log, settings (admin role only)
-- [ ] **Audit log table** — every scan logged with user, target, ts, allowed/denied, reason. Always on, even single-user.
-- [ ] Middleware on `/api/scan` writes audit row before invoking engine
-- [ ] **Scope config** — `assets.yaml` or `ALLOWED_DOMAINS` env. Off-scope scans WARN by default; `STRICT_SCOPE=true` blocks.
-- [ ] Hardcoded blocklist baked in: `*.gov`, `*.mil`, financial regulators, NATO domains
+- [ ] `/admin` route — users list, **audit-log viewer**, settings (admin role only)
+- [ ] Extend v0.1 `audit_log` table with `user_id` column; backfill `null` for pre-auth rows
+- [ ] Auth middleware on `/api/scan` populates `user_id` before the existing audit-write
 - [ ] Periodic re-verification (cron) for any explicitly verified domains
 - [ ] Documentation: network segmentation expectations, SSO setup guides for Okta/Workspace/Auth0
 
@@ -166,8 +208,21 @@ _(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
 - [ ] Versioning convention (semver) + release process
 - [ ] Sketched alternative: third executor `HttpExecutor` (point Worker at remote engine VM) — already discussed; ~50 lines
 
-### Litestream (alternative to D1, deferred — overlaps with engine-owns-DB)
-- [ ] _Likely obviated by v0.2.0 engine refactor; engine's SQLite + volume mount on customer infra removes the need for replication for self-hosted. Keep on radar only if a customer wants HA without Postgres._
+### Litestream (shipped, this session — 2026-05-08)
+- [x] Litestream sidecars wired into `docker-compose.yml`: `litestream-restore` (one-shot init, idempotent) + `litestream` (long-running replicate). Engine unchanged — WAL mode in `engine/db.go` was already on.
+- [x] `litestream.yml` at repo root with local file replica as default; commented R2 / S3 / Azure / GCS blocks.
+- [x] `litestream-backup` named volume for the default file replica.
+- [x] README "Persistence & backups" section documents the cloud swap-in flow + manual restore command.
+- [x] CLAUDE.md architecture diagram + new "Persistence (Litestream)" section explain the sidecar topology for future agents.
+
+### UI: about page, tool attribution, breadcrumbs, layout (shipped, this session — 2026-05-08)
+- [x] `/about` route (`web/src/app/(app)/about/page.tsx`) — five panels: intro, recon tools, engine & runtime, web stack, data. Every entry is a clickable GitHub link with a `↗` glyph; sidebar gets an `Info`-icon `about` nav entry.
+- [x] `ToolSourceLink` (`components/recon/tool-source-link.tsx`) — tiny `via TOOL ↗` link wired into the `action` slot of every tab's main result Panel on the dashboard (subfinder / dnsx / tlsx / httpx / cdncheck / urlfinder).
+- [x] `urlfinder` (the missed projectdiscovery tool) added to the about page's recon-tools list.
+- [x] **Breadcrumbs rewritten** to use shadcn primitives (`Breadcrumb`, `BreadcrumbList`, `BreadcrumbItem`, `BreadcrumbLink`, `BreadcrumbPage`, `BreadcrumbSeparator`) with `next/link` via `asChild`. `PageHeader` `segments` prop now accepts `string | { label, href? }`. `HOPPER-RECON` → `/dashboard`; `HISTORY` on detail routes → `/history`; leaf segments render as `BreadcrumbPage`. Was previously hand-rolled `<span>`s with zero links.
+- [x] **Right-side overflow fix** — `min-w-0` on `SidebarInset` (`app/(app)/layout.tsx`), `grid-cols-[300px_minmax(0,1fr)]` + `min-w-0` on inner cols on the dashboard's results grid, `[&>*]:min-w-0` on `history/[domain]` panels grid. Without these, intrinsic content width (long URLs, recharts SVGs, JARM hashes) pushed the page past the viewport.
+- [x] **Globe colors** retuned (`components/recon/geo-globe.tsx`) — `baseColor 0.07 → 0.18` so the sphere reads above `--card`; markers now `[0.40, 0.92, 0.45]` (≈ `--terminal-green`) per the green-as-signal rule; faint phosphor edge glow added; `mapBrightness 7 → 9` for legible continents. sRGB ↔ oklch token mapping written into the file as a comment.
+- [x] CLAUDE.md gets a new "UI conventions" section documenting these load-bearing patterns; "Adding a tool" checklist gets a step 6 covering attribution (ToolSourceLink + about-page entry).
 
 ---
 

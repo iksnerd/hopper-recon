@@ -14,8 +14,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseUncover,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type UncoverResult,
+  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult,
 } from "@/lib/scan-parser"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
@@ -115,21 +115,25 @@ export default function DomainDetailPage() {
     try { return JSON.parse(row.results_json) } catch { return null }
   }
 
-  const subRaw     = summary ? get("passive_subdomains") : null
-  const dnsRaw     = summary ? get("resolve_dns")        : null
-  const tlsRaw     = summary ? get("fetch_tls_cert")     : null
-  const httpRaw    = summary ? get("probe_http")         : null
-  const uncoverRaw = summary ? get("search_hosts")       : null
+  const subRaw  = summary ? get("passive_subdomains") : null
+  const dnsRaw  = summary ? get("resolve_dns")        : null
+  const tlsRaw  = summary ? get("fetch_tls_cert")     : null
+  const httpRaw = summary ? get("probe_http")         : null
+  const cdnRaw  = summary ? get("check_cdn")          : null
+  const urlsRaw = summary ? get("find_urls")          : null
 
-  const subdomains: SubdomainResult | null = subRaw     ? parseSubdomains({ results: subRaw })  : null
-  const dns:        DnsResult | null       = dnsRaw     ? parseDns({ results: dnsRaw })         : null
-  const tls:        TlsResult | null       = tlsRaw     ? parseTls({ results: tlsRaw })         : null
-  const http:       HttpResult | null      = httpRaw    ? parseHttp({ results: httpRaw })       : null
-  const uncover:    UncoverResult | null   = uncoverRaw ? parseUncover({ results: uncoverRaw }) : null
+  const subdomains: SubdomainResult | null = subRaw  ? parseSubdomains({ results: subRaw }) : null
+  const dns:        DnsResult | null       = dnsRaw  ? parseDns({ results: dnsRaw })        : null
+  const tls:        TlsResult | null       = tlsRaw  ? parseTls({ results: tlsRaw })        : null
+  const http:       HttpResult | null      = httpRaw ? parseHttp({ results: httpRaw })      : null
+  const cdn:        CdnResult | null       = cdnRaw  ? parseCdn({ results: cdnRaw })        : null
+  const urls:       UrlsResult | null      = urlsRaw ? parseUrls({ results: urlsRaw })      : null
 
   const [geoCountries, setGeoCountries] = React.useState<{ code: string; count: number }[]>([])
 
-  const ipKey = dns?.a?.join(",") ?? ""
+  // Include both A (IPv4) and AAAA (IPv6) records — IPv6-prominent hosts
+  // were invisible on the globe before this.
+  const ipKey = [...(dns?.a ?? []), ...(dns?.aaaa ?? [])].join(",")
 
   React.useEffect(() => {
     if (!ipKey) return
@@ -154,7 +158,7 @@ export default function DomainDetailPage() {
   return (
     <div className="min-h-screen font-mono text-foreground scanlines">
       <PageHeader
-        segments={["HISTORY", domain]}
+        segments={[{ label: "HISTORY", href: "/history" }, domain]}
         right={
           <>
             {summary && (
@@ -221,11 +225,24 @@ export default function DomainDetailPage() {
             {/* Findings strip */}
             <FindingsStrip subs={subdomains} dns={dns} tls={tls} http={http} />
 
-            {/* Geo globe */}
-            {geoCountries.length > 0 && <GeoGlobe countries={geoCountries} />}
+            {/* Geo globe — only renders when at least one IP attributes to a
+                country. Anycast IPs (Cloudflare / AWS / Google) have no country
+                in GeoLite2, so CDN-fronted hosts intentionally show the note
+                instead of an empty sphere. */}
+            {geoCountries.length > 0 ? (
+              <GeoGlobe countries={geoCountries} />
+            ) : (dns?.a.length ?? 0) + (dns?.aaaa.length ?? 0) > 0 ? (
+              <Panel label="// GEO" variant="inset" contentClassName="py-3">
+                <p className="text-data text-muted-foreground-2">
+                  no country attribution for resolved IPs — likely anycast (Cloudflare / AWS / Google)
+                </p>
+              </Panel>
+            ) : null}
 
-            {/* Main panels */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Main panels — [&>*]:min-w-0 lets each grid item shrink below
+                its content's intrinsic width (cert SAN lists, long URLs,
+                recharts SVGs) so nothing pushes past the viewport. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 [&>*]:min-w-0">
 
               {/* Subdomains */}
               {subdomains && (
@@ -249,9 +266,9 @@ export default function DomainDetailPage() {
                       </ChartContainer>
                     </ChartBoundary>
                   )}
-                  <div className="space-y-px">
+                  <div className="space-y-px max-h-[600px] overflow-y-auto border border-border bg-card-inset">
                     {subdomains.findings.map(({ host, sources }) => (
-                      <div key={host} className="group text-data px-1 py-0.5 flex items-center gap-2 hover:bg-card-hover transition-colors duration-100">
+                      <div key={host} className="group text-data px-2 py-0.5 flex items-center gap-2 hover:bg-card-hover transition-colors duration-100">
                         <span className="text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{host}</span>
                         <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{sources.join(", ")}</span>
                         <Link
@@ -394,24 +411,36 @@ export default function DomainDetailPage() {
               )}
             </div>
 
-            {/* Uncover */}
-            {uncover && uncover.entries.length > 0 && (
-              <Panel label={`// EXPOSED HOSTS [${uncover.entries.length}]`} variant="inset" className="lg:col-span-2">
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {uncover.sourceCounts.map(({ source, count }) => (
-                    <DataChip key={source} className="px-1.5">{source} {count}</DataChip>
-                  ))}
-                  {uncover.portCounts.map(({ port, count }) => (
-                    <DataChip key={port} className="px-1.5 text-muted-foreground">:{port} ×{count}</DataChip>
+            {/* CDN attribution */}
+            {cdn && cdn.entries.length > 0 && (
+              <Panel label={`// CDN ATTRIBUTION [${cdn.entries.length}]`} variant="inset">
+                <div className="space-y-px">
+                  {cdn.entries.map((e, i) => (
+                    <div key={`${e.ip}-${i}`} className="flex items-center gap-3 px-1 py-0.5 hover:bg-card transition-colors duration-100">
+                      <span className="font-mono text-data text-foreground tabular-nums w-[140px] shrink-0">{e.ip}</span>
+                      <DataChip className="shrink-0 uppercase">{e.kind}</DataChip>
+                      <span className="font-mono text-data text-muted-foreground-2 flex-1">{e.name}</span>
+                    </div>
                   ))}
                 </div>
-                <div className="space-y-px">
-                  {uncover.entries.map((e, i) => (
-                    <div key={i} className="flex items-center gap-3 px-1 py-0.5 hover:bg-card transition-colors duration-100">
-                      <span className="font-mono text-data text-foreground tabular-nums w-[100px] shrink-0">{e.ip}</span>
-                      <span className="font-mono text-data text-muted-foreground-2 tabular-nums w-[48px] shrink-0">{e.port}</span>
-                      <span className="font-mono text-data text-muted-foreground-3 truncate flex-1">{e.host || e.url}</span>
-                      <DataChip className="shrink-0 text-muted-foreground-3">{e.source}</DataChip>
+              </Panel>
+            )}
+
+            {/* Historical URLs */}
+            {urls && urls.entries.length > 0 && (
+              <Panel label={`// HISTORICAL URLS [${urls.entries.length}]`} variant="inset">
+                {urls.sourceCounts.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {urls.sourceCounts.map(({ source, count }) => (
+                      <DataChip key={source} className="px-1.5">{source} {count}</DataChip>
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                  {urls.entries.map((e, i) => (
+                    <div key={`${e.url}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                      <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.url}</span>
+                      <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{e.source}</span>
                     </div>
                   ))}
                 </div>

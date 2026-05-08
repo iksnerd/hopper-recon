@@ -1,0 +1,94 @@
+# Hopper Recon — self-hosted reference topology.
+#
+# Engine owns the SQLite database at /data/scans.db inside its container; the
+# web frontend is a stateless Node.js process that talks to the engine over
+# HTTP. The web container does not need the Docker socket.
+#
+# Optional volume mounts on the engine pull in OSINT API keys and the
+# GeoLite2 mmdb when present on the host. Missing files degrade gracefully.
+
+services:
+  # One-shot init: pulls the most recent snapshot from the configured replica
+  # back into /data/scans.db before the engine starts. The flags make it a
+  # no-op when there is nothing to restore (fresh install) or when the local
+  # DB already exists (normal restart), so it is safe to run every boot.
+  litestream-restore:
+    image: litestream/litestream:0.3.13
+    restart: "no"
+    command: ["restore", "-if-replica-exists", "-if-db-not-exists", "/data/scans.db"]
+    volumes:
+      - engine-data:/data
+      - litestream-backup:/backups
+      - ./litestream.yml:/etc/litestream.yml:ro
+    env_file:
+      - path: ./.env
+        required: false
+
+  engine:
+    build:
+      context: ./engine
+    image: hopper-recon:latest
+    restart: unless-stopped
+    depends_on:
+      litestream-restore:
+        condition: service_completed_successfully
+    volumes:
+      - engine-data:/data
+      # subfinder bootstraps its own config.yaml on first run, so this mount
+      # must be writable. API keys, when added, persist back to the host.
+      - ${HOME}/.config/subfinder:/root/.config/subfinder
+      # GeoLite2 mmdb is read-only — engine never writes to it.
+      - ${HOME}/.config/hopper-recon:/root/.config/hopper-recon:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    # Bound to loopback so the host's MCP clients (Claude Code, Cline, etc.)
+    # can reach /mcp at http://127.0.0.1:9119/mcp without opening the engine to LAN.
+    # Host-side port 9119 is intentionally off the well-known 8080 to avoid
+    # colliding with the dozen other dev tools that grab :8080. The container
+    # still listens on :8080 internally; the web service reaches it via the
+    # compose network at engine:8080.
+    ports:
+      - "127.0.0.1:9119:8080"
+
+  # Long-running sidecar: streams WAL frames to the replica continuously
+  # while the engine writes. Reads the DB file from the shared volume — no
+  # engine changes required since journal_mode=WAL is already on.
+  litestream:
+    image: litestream/litestream:0.3.13
+    restart: unless-stopped
+    command: ["replicate"]
+    depends_on:
+      engine:
+        condition: service_healthy
+    volumes:
+      - engine-data:/data
+      - litestream-backup:/backups
+      - ./litestream.yml:/etc/litestream.yml:ro
+    env_file:
+      - path: ./.env
+        required: false
+
+  web:
+    build:
+      context: ./web
+    image: hopper-recon-web:latest
+    restart: unless-stopped
+    depends_on:
+      engine:
+        condition: service_healthy
+    environment:
+      - ENGINE_URL=http://engine:8080
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  engine-data:
+  litestream-backup:

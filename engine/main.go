@@ -2,350 +2,187 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
-	"net"
 	"os"
-	"os/exec"
 	"strings"
-	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/oschwald/geoip2-golang"
 )
 
-const geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
+// MCP input/output types — kept narrow so the schemas auto-generated from
+// jsonschema tags stay friendly for the AI clients calling them.
 
-var (
-	geoipOnce   sync.Once
-	geoipReader *geoip2.Reader
-	geoipErr    error
-)
-
-// loadGeoipReader opens the bundled MaxMind GeoLite2-Country.mmdb once. If the
-// file is missing the reader stays nil; callers must handle that as "no result".
-func loadGeoipReader() (*geoip2.Reader, error) {
-	geoipOnce.Do(func() {
-		if _, statErr := os.Stat(geoipDbPath); statErr != nil {
-			return // reader stays nil; not a hard error
-		}
-		geoipReader, geoipErr = geoip2.Open(geoipDbPath)
-	})
-	return geoipReader, geoipErr
-}
-
-// --- Subfinder ---
-type SubfinderInput struct {
+type subfinderInput struct {
 	Domain string `json:"domain" jsonschema:"The domain to perform passive reconnaissance on (e.g., example.com)"`
 }
-
-type SubfinderEntry struct {
-	Host    string   `json:"host"`
-	Sources []string `json:"sources"`
-}
-
-type SubfinderOutput struct {
+type subfinderOutput struct {
 	Findings []SubfinderEntry `json:"findings" jsonschema:"Subdomains found, each with the OSINT sources that discovered it"`
 	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
 }
 
-// --- DNSX ---
-type DnsxInput struct {
-	Target string `json:"target" jsonschema:"The domain or subdomain to resolve (e.g., api.example.com)"`
+type targetInput struct {
+	Target string `json:"target" jsonschema:"The domain or subdomain to act on"`
 }
-
-type DnsxOutput struct {
-	Results []string `json:"results" jsonschema:"The JSON output from dnsx containing resolved records"`
+type linesOutput struct {
+	Results []string `json:"results" jsonschema:"One JSON-encoded record per line of tool output"`
 	Error   string   `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
 }
 
-// --- TLSX ---
-type TlsxInput struct {
-	Target string `json:"target" jsonschema:"The domain or IP to fetch TLS certificate details for"`
-}
-
-type TlsxOutput struct {
-	Results []string `json:"results" jsonschema:"The JSON output from tlsx containing SANs, CN, and cert details"`
-	Error   string   `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
-}
-
-// --- HTTPX ---
-type HttpxInput struct {
-	Target string `json:"target" jsonschema:"The target domain or IP to probe (e.g., api.example.com)"`
-}
-
-type HttpxOutput struct {
-	Results []string `json:"results" jsonschema:"The JSON output from httpx containing status, title, tech, etc."`
-	Error   string   `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
-}
-
-// --- ASNMAP ---
-type AsnmapInput struct {
-	Domain string `json:"domain" jsonschema:"The domain to map to ASN and CIDR ranges (e.g., example.com)"`
-}
-
-type AsnmapOutput struct {
-	Results []string `json:"results" jsonschema:"The JSON output from asnmap containing ASN and CIDR range entries"`
-	Error   string   `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
-}
-
-// --- UNCOVER ---
-type UncoverInput struct {
-	Domain string `json:"domain" jsonschema:"The domain to search for exposed hosts across internet scan databases (e.g., example.com)"`
-}
-
-type UncoverOutput struct {
-	Results []string `json:"results" jsonschema:"The JSON output from uncover containing exposed IPs, ports, and source engines"`
-	Error   string   `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
-}
-
-// --- GEOIP ---
-type LookupGeoipInput struct {
+type geoipInput struct {
 	Ips string `json:"ips" jsonschema:"Comma-separated list of IPv4/IPv6 addresses to look up (e.g., 8.8.8.8,1.1.1.1)"`
 }
-
-type GeoipEntry struct {
-	Ip      string `json:"ip"`
-	Country string `json:"country"`
-}
-
-type LookupGeoipOutput struct {
+type geoipOutput struct {
 	Results []GeoipEntry `json:"results" jsonschema:"One entry per resolvable IP. Empty Country means no match in the local mmdb (or the mmdb file is missing)."`
 	Error   string       `json:"error,omitempty" jsonschema:"Any error message encountered during lookup"`
 }
 
-func HandleSubfinder(ctx context.Context, req *mcp.CallToolRequest, input SubfinderInput) (*mcp.CallToolResult, SubfinderOutput, error) {
-	// -oJ outputs JSONL, -cs collects source attribution per subdomain
-	cmd := exec.CommandContext(ctx, "subfinder", "-d", input.Domain, "-silent", "-all", "-oJ", "-cs")
-	out, err := cmd.CombinedOutput()
+func handleSubfinder(ctx context.Context, _ *mcp.CallToolRequest, in subfinderInput) (*mcp.CallToolResult, subfinderOutput, error) {
+	findings, err := RunSubfinder(ctx, in.Domain)
 	if err != nil {
-		return nil, SubfinderOutput{Error: fmt.Sprintf("failed to run subfinder: %v", err)}, nil
+		return nil, subfinderOutput{Error: err.Error()}, nil
 	}
-
-	var findings []SubfinderEntry
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line == "" {
-			continue
-		}
-		var entry SubfinderEntry
-		if jsonErr := json.Unmarshal([]byte(line), &entry); jsonErr == nil && entry.Host != "" {
-			findings = append(findings, entry)
-		}
-	}
-
-	return nil, SubfinderOutput{Findings: findings}, nil
+	return nil, subfinderOutput{Findings: findings}, nil
 }
 
-func HandleDnsx(ctx context.Context, req *mcp.CallToolRequest, input DnsxInput) (*mcp.CallToolResult, DnsxOutput, error) {
-	// -ns/-mx/-txt/-cdn/-asn add nameserver, mail, TXT records, CDN and ASN info
-	cmd := exec.CommandContext(ctx, "dnsx", "-silent", "-a", "-cname", "-ns", "-mx", "-txt", "-cdn", "-asn", "-json")
-	cmd.Stdin = strings.NewReader(input.Target + "\n")
-	out, err := cmd.CombinedOutput()
+func handleDnsx(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
+	res, err := RunDnsx(ctx, in.Target)
 	if err != nil {
-		return nil, DnsxOutput{
-			Error: fmt.Sprintf("failed to run dnsx: %v", err),
-		}, nil
+		return nil, linesOutput{Error: err.Error()}, nil
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var results []string
-	for _, l := range lines {
-		if l != "" {
-			results = append(results, l)
-		}
-	}
-
-	// DMARC TXT records live at _dmarc.<domain>, not the apex. Query separately
-	// and merge into the apex result's txt array so the parser can detect them.
-	if len(results) > 0 {
-		dmarcCmd := exec.CommandContext(ctx, "dnsx", "-silent", "-txt", "-json")
-		dmarcCmd.Stdin = strings.NewReader("_dmarc." + input.Target + "\n")
-		if dmarcOut, dmarcErr := dmarcCmd.CombinedOutput(); dmarcErr == nil {
-			var apex map[string]any
-			if json.Unmarshal([]byte(results[0]), &apex) == nil {
-				existing, _ := apex["txt"].([]any)
-				for _, dl := range strings.Split(strings.TrimSpace(string(dmarcOut)), "\n") {
-					if dl == "" {
-						continue
-					}
-					var dmarc map[string]any
-					if json.Unmarshal([]byte(dl), &dmarc) != nil {
-						continue
-					}
-					if dt, ok := dmarc["txt"].([]any); ok {
-						existing = append(existing, dt...)
-					}
-				}
-				apex["txt"] = existing
-				if merged, mergeErr := json.Marshal(apex); mergeErr == nil {
-					results[0] = string(merged)
-				}
-			}
-		}
-	}
-
-	return nil, DnsxOutput{
-		Results: results,
-	}, nil
+	return nil, linesOutput{Results: res}, nil
 }
 
-func HandleTlsx(ctx context.Context, req *mcp.CallToolRequest, input TlsxInput) (*mcp.CallToolResult, TlsxOutput, error) {
-	// -san/-cn are redundant (already in JSON output); -so/-tv/-cipher/-wc/-expired/-self-signed add org, tls version, cipher, wildcard and misconfiguration checks
-	cmd := exec.CommandContext(ctx, "tlsx", "-u", input.Target, "-so", "-tv", "-cipher", "-wc", "-expired", "-self-signed", "-silent", "-json")
-	out, err := cmd.CombinedOutput()
+func handleTlsx(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
+	res, err := RunTlsx(ctx, in.Target)
 	if err != nil {
-		return nil, TlsxOutput{
-			Error: fmt.Sprintf("failed to run tlsx: %v", err),
-		}, nil
+		return nil, linesOutput{Error: err.Error()}, nil
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var results []string
-	for _, l := range lines {
-		if l != "" {
-			results = append(results, l)
-		}
-	}
-
-	return nil, TlsxOutput{
-		Results: results,
-	}, nil
+	return nil, linesOutput{Results: res}, nil
 }
 
-func HandleHttpx(ctx context.Context, req *mcp.CallToolRequest, input HttpxInput) (*mcp.CallToolResult, HttpxOutput, error) {
-	// -fr follows redirects; -jarm adds TLS fingerprint; -asn/-cname add network info; -location/-chain-status-codes show redirect chain
-	cmd := exec.CommandContext(ctx, "httpx", "-u", input.Target, "-silent", "-json", "-title", "-td", "-sc", "-fr", "-location", "-jarm", "-asn", "-cname", "-rt", "-rl", "50")
-	out, err := cmd.CombinedOutput()
+func handleHttpx(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
+	res, err := RunHttpx(ctx, in.Target)
 	if err != nil {
-		return nil, HttpxOutput{
-			Error: fmt.Sprintf("failed to run httpx: %v", err),
-		}, nil
+		return nil, linesOutput{Error: err.Error()}, nil
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var results []string
-	for _, l := range lines {
-		if l != "" {
-			results = append(results, l)
-		}
-	}
-
-	return nil, HttpxOutput{
-		Results: results,
-	}, nil
+	return nil, linesOutput{Results: res}, nil
 }
 
-func HandleAsnmap(ctx context.Context, req *mcp.CallToolRequest, input AsnmapInput) (*mcp.CallToolResult, AsnmapOutput, error) {
-	cmd := exec.CommandContext(ctx, "asnmap", "-d", input.Domain, "-json", "-silent")
-	out, err := cmd.CombinedOutput()
+func handleCdncheck(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
+	res, err := RunCdncheck(ctx, in.Target)
 	if err != nil {
-		return nil, AsnmapOutput{Error: fmt.Sprintf("failed to run asnmap: %v", err)}, nil
+		return nil, linesOutput{Error: err.Error()}, nil
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var results []string
-	for _, l := range lines {
-		if l != "" {
-			results = append(results, l)
-		}
-	}
-
-	return nil, AsnmapOutput{Results: results}, nil
+	return nil, linesOutput{Results: res}, nil
 }
 
-func HandleLookupGeoip(ctx context.Context, req *mcp.CallToolRequest, input LookupGeoipInput) (*mcp.CallToolResult, LookupGeoipOutput, error) {
-	reader, err := loadGeoipReader()
-	if err != nil {
-		return nil, LookupGeoipOutput{Error: fmt.Sprintf("failed to open GeoLite2 db: %v", err)}, nil
-	}
-
-	results := []GeoipEntry{}
-	if reader == nil {
-		// mmdb not mounted — return empty so the caller can degrade gracefully.
-		return nil, LookupGeoipOutput{Results: results}, nil
-	}
-
-	for _, raw := range strings.Split(input.Ips, ",") {
-		ip := strings.TrimSpace(raw)
-		if ip == "" {
-			continue
-		}
-		parsed := net.ParseIP(ip)
-		if parsed == nil {
-			continue
-		}
-		record, lookupErr := reader.Country(parsed)
-		if lookupErr != nil || record.Country.IsoCode == "" {
-			continue
-		}
-		results = append(results, GeoipEntry{Ip: ip, Country: record.Country.IsoCode})
-	}
-
-	return nil, LookupGeoipOutput{Results: results}, nil
+type urlfinderInput struct {
+	Domain string `json:"domain" jsonschema:"The domain to gather historical URLs for (e.g., example.com)"`
 }
 
-func HandleUncover(ctx context.Context, req *mcp.CallToolRequest, input UncoverInput) (*mcp.CallToolResult, UncoverOutput, error) {
-	query := fmt.Sprintf("ssl:\"%s\"", input.Domain)
-	cmd := exec.CommandContext(ctx, "uncover", "-q", query, "-json", "-silent", "-timeout", "30")
-	out, err := cmd.CombinedOutput()
+func handleUrlfinder(ctx context.Context, _ *mcp.CallToolRequest, in urlfinderInput) (*mcp.CallToolResult, linesOutput, error) {
+	res, err := RunUrlfinder(ctx, in.Domain)
 	if err != nil {
-		return nil, UncoverOutput{Error: fmt.Sprintf("failed to run uncover: %v", err)}, nil
+		return nil, linesOutput{Error: err.Error()}, nil
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var results []string
-	for _, l := range lines {
-		if l != "" {
-			results = append(results, l)
-		}
-	}
-	return nil, UncoverOutput{Results: results}, nil
+	return nil, linesOutput{Results: res}, nil
 }
 
-func main() {
+func handleLookupGeoip(_ context.Context, _ *mcp.CallToolRequest, in geoipInput) (*mcp.CallToolResult, geoipOutput, error) {
+	ips := strings.Split(in.Ips, ",")
+	res, err := LookupGeoip(ips)
+	if err != nil {
+		return nil, geoipOutput{Error: err.Error()}, nil
+	}
+	return nil, geoipOutput{Results: res}, nil
+}
+
+// buildMCPServer registers all tool handlers on a fresh server. Both the
+// stdio mode and the HTTP /mcp mount call this — same surface, two transports.
+func buildMCPServer() *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "hopper-recon-engine",
-		Version: "v0.1.0",
+		Version: "v0.2.0",
 	}, nil)
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "passive_subdomains",
 		Description: "Perform strictly passive reconnaissance to find subdomains using OSINT (subfinder).",
-	}, HandleSubfinder)
-
+	}, handleSubfinder)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "resolve_dns",
 		Description: "Safely resolve a domain to verify if it is live using standard DNS queries (dnsx).",
-	}, HandleDnsx)
-
+	}, handleDnsx)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "fetch_tls_cert",
 		Description: "Safely connect to a server to grab its public SSL/TLS certificate, CN, and SANs without sending payloads (tlsx).",
-	}, HandleTlsx)
-
+	}, handleTlsx)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "probe_http",
-		Description: "Safely probe a target domain to detect active HTTP servers, extract titles, and technology stack, strictly rate-limited to 50 requests per second (httpx).",
-	}, HandleHttpx)
-
+		Description: "Probe a target domain to detect HTTP servers, extract titles, and technology stack. Identifies itself with a hopper-recon User-Agent. Rate-limited to 50 req/s (httpx).",
+	}, handleHttpx)
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "map_asn",
-		Description: "Map a domain to its ASN and associated CIDR ranges using passive OSINT (asnmap).",
-	}, HandleAsnmap)
-
+		Name:        "check_cdn",
+		Description: "Attribute the IPs behind a domain to their CDN, cloud, or WAF provider using bundled CIDR lists (cdncheck). Pure offline lookup — no requests reach the target.",
+	}, handleCdncheck)
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "search_hosts",
-		Description: "Search internet scan databases (Shodan, Censys, FOFA) for exposed IPs and open ports associated with a domain using SSL certificate queries (uncover).",
-	}, HandleUncover)
-
+		Name:        "find_urls",
+		Description: "Gather historical URLs for a domain from passive sources (waybackarchive, commoncrawl, alienvault). No requests to the target (urlfinder).",
+	}, handleUrlfinder)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "lookup_geoip",
-		Description: "Resolve IP addresses to ISO 3166-1 alpha-2 country codes using a bundled MaxMind GeoLite2-Country database mounted at /root/.config/hopper-recon/GeoLite2-Country.mmdb. Pure offline, no external network calls.",
-	}, HandleLookupGeoip)
+		Description: "Resolve IP addresses to ISO 3166-1 alpha-2 country codes using a bundled MaxMind GeoLite2-Country database. Pure offline, no external network calls.",
+	}, handleLookupGeoip)
 
-	log.Println("Hopper Recon MCP Server starting on stdio...")
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	return server
+}
+
+func runStdioMCP() error {
+	log.Println("Hopper Recon engine: stdio MCP mode")
+	return buildMCPServer().Run(context.Background(), &mcp.StdioTransport{})
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage: hopper-recon [serve [-addr :8080] [-db /data/scans.db]]")
+	fmt.Fprintln(os.Stderr, "  no args:  stdio MCP server (for AI agents via `docker run -i`)")
+	fmt.Fprintln(os.Stderr, "  serve:    long-running HTTP server (REST + MCP at /mcp) for the dashboard")
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		if err := runStdioMCP(); err != nil {
+			log.Fatalf("stdio: %v", err)
+		}
+		return
 	}
+
+	switch os.Args[1] {
+	case "serve":
+		fs := flag.NewFlagSet("serve", flag.ExitOnError)
+		addr := fs.String("addr", envOr("HOPPER_ADDR", ":8080"), "HTTP listen address")
+		dbPath := fs.String("db", envOr("HOPPER_DB_PATH", "/data/scans.db"), "SQLite database path")
+		_ = fs.Parse(os.Args[2:])
+		if err := runHTTPServer(*addr, *dbPath); err != nil {
+			log.Fatalf("serve: %v", err)
+		}
+	case "mcp", "stdio":
+		if err := runStdioMCP(); err != nil {
+			log.Fatalf("stdio: %v", err)
+		}
+	case "-h", "--help", "help":
+		usage()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown subcommand %q\n", os.Args[1])
+		usage()
+		os.Exit(2)
+	}
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }

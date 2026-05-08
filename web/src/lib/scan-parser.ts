@@ -12,6 +12,7 @@ export interface SubdomainResult {
 export interface DnsResult {
   host: string
   a: string[]
+  aaaa: string[]
   ns: string[]
   mx: string[]
   txt: string[]
@@ -62,29 +63,27 @@ export interface HttpResult {
   a: string[]
 }
 
-export interface AsnEntry {
-  asn: number
-  org: string
-  cidrs: string[]
-  country: string
-}
+export type CdnKind = "cdn" | "cloud" | "waf"
 
-export interface AsnResult {
-  entries: AsnEntry[]
-}
-
-export interface UncoverEntry {
+export interface CdnEntry {
   ip: string
-  port: number
-  host: string
+  kind: CdnKind
+  name: string
+}
+
+export interface CdnResult {
+  entries: CdnEntry[]
+}
+
+export interface UrlEntry {
   url: string
   source: string
 }
 
-export interface UncoverResult {
-  entries: UncoverEntry[]
-  portCounts: { port: string; count: number }[]
+export interface UrlsResult {
+  entries: UrlEntry[]
   sourceCounts: { source: string; count: number }[]
+  hostCounts: { host: string; count: number }[]
 }
 
 // ── Category patterns ─────────────────────────────────────────────────────────
@@ -113,15 +112,25 @@ function categorise(sub: string): string {
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
 export function parseSubdomains(apiResult: unknown): SubdomainResult {
-  const raw = apiResult as { results: Array<{ findings?: SubdomainEntry[]; subdomains?: string[] }> }
-  const first = raw?.results?.[0]
+  // Engine /scan returns `results: SubfinderEntry[]` directly — each entry is
+  // `{ host, sources }`. Older payloads (which we no longer produce) wrapped
+  // this in `[{ findings: [...] }]` or `[{ subdomains: [...] }]`, kept for
+  // backwards-compatible reads of legacy DB rows.
+  const raw = apiResult as {
+    results: Array<SubdomainEntry | { findings?: SubdomainEntry[]; subdomains?: string[] }>
+  }
+  const items = raw?.results ?? []
 
-  // Support both new (findings) and legacy (subdomains) format
   let findings: SubdomainEntry[] = []
-  if (first?.findings) {
-    findings = first.findings
-  } else if (first?.subdomains) {
-    findings = first.subdomains.map((h) => ({ host: h, sources: [] }))
+  if (items.length > 0 && typeof (items[0] as SubdomainEntry).host === "string") {
+    findings = items as SubdomainEntry[]
+  } else {
+    const first = items[0] as { findings?: SubdomainEntry[]; subdomains?: string[] } | undefined
+    if (first?.findings) {
+      findings = first.findings
+    } else if (first?.subdomains) {
+      findings = first.subdomains.map((h) => ({ host: h, sources: [] }))
+    }
   }
 
   const categoryCounts: Record<string, number> = {}
@@ -147,14 +156,15 @@ export function parseSubdomains(apiResult: unknown): SubdomainResult {
 }
 
 export function parseDns(apiResult: unknown): DnsResult | null {
-  const raw = apiResult as { results: Array<{ results?: string[] }> }
-  const lines = raw?.results?.[0]?.results ?? []
-  if (!lines.length) return null
-
-  const first = JSON.parse(lines[0]) as {
-    host: string; a?: string[]; ns?: string[]; mx?: string[]; txt?: string[]
-    cdn?: string; asn?: string; status_code: string; ttl: number; resolver: string[]
+  // Engine /scan returns `results: [parsedDnsRecord]` — already JSON-decoded.
+  const raw = apiResult as {
+    results: Array<{
+      host: string; a?: string[]; aaaa?: string[]; ns?: string[]; mx?: string[]; txt?: string[]
+      cdn?: string; asn?: string; status_code: string; ttl: number; resolver: string[]
+    }>
   }
+  const first = raw?.results?.[0]
+  if (!first) return null
 
   const a = first.a ?? []
   const prefixCounts: Record<string, number> = {}
@@ -175,6 +185,7 @@ export function parseDns(apiResult: unknown): DnsResult | null {
   return {
     host: first.host,
     a,
+    aaaa: first.aaaa ?? [],
     ns: first.ns ?? [],
     mx: first.mx ?? [],
     txt,
@@ -191,16 +202,16 @@ export function parseDns(apiResult: unknown): DnsResult | null {
 }
 
 export function parseTls(apiResult: unknown): TlsResult | null {
-  const raw = apiResult as { results: Array<{ results?: string[] }> }
-  const lines = raw?.results?.[0]?.results ?? []
-  if (!lines.length) return null
-
-  const c = JSON.parse(lines[0]) as {
-    host: string; ip: string; port: string; tls_version: string; cipher: string
-    not_before: string; not_after: string; subject_cn: string; subject_an?: string[]
-    subject_org?: string; issuer_cn: string; issuer_org?: string[]; serial: string
-    wildcard_certificate?: boolean; expired?: boolean; self_signed?: boolean
+  const raw = apiResult as {
+    results: Array<{
+      host: string; ip: string; port: string; tls_version: string; cipher: string
+      not_before: string; not_after: string; subject_cn: string; subject_an?: string[]
+      subject_org?: string; issuer_cn: string; issuer_org?: string[]; serial: string
+      wildcard_certificate?: boolean; expired?: boolean; self_signed?: boolean
+    }>
   }
+  const c = raw?.results?.[0]
+  if (!c) return null
 
   const daysLeft = Math.ceil(
     (new Date(c.not_after).getTime() - Date.now()) / 86_400_000
@@ -223,68 +234,17 @@ export function parseTls(apiResult: unknown): TlsResult | null {
   }
 }
 
-export function parseUncover(apiResult: unknown): UncoverResult {
-  const raw = apiResult as { results: Array<{ results?: string[] }> }
-  const lines = raw?.results?.[0]?.results ?? []
-
-  const entries: UncoverEntry[] = []
-  const portMap: Record<string, number> = {}
-  const sourceMap: Record<string, number> = {}
-
-  for (const line of lines) {
-    try {
-      const r = JSON.parse(line) as { ip?: string; port?: number; host?: string; url?: string; source?: string }
-      if (!r.ip) continue
-      entries.push({ ip: r.ip, port: r.port ?? 0, host: r.host ?? "", url: r.url ?? "", source: r.source ?? "" })
-      const p = String(r.port ?? "?")
-      portMap[p] = (portMap[p] ?? 0) + 1
-      const s = r.source ?? "unknown"
-      sourceMap[s] = (sourceMap[s] ?? 0) + 1
-    } catch { /* skip malformed lines */ }
-  }
-
-  return {
-    entries,
-    portCounts: Object.entries(portMap).map(([port, count]) => ({ port, count })).sort((a, b) => b.count - a.count),
-    sourceCounts: Object.entries(sourceMap).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
-  }
-}
-
-export function parseAsn(apiResult: unknown): AsnResult {
-  const raw = apiResult as { results: Array<{ results?: string[] }> }
-  const lines = raw?.results?.[0]?.results ?? []
-
-  const entries: AsnEntry[] = []
-  for (const line of lines) {
-    try {
-      const r = JSON.parse(line) as {
-        as_number?: number; as_name?: string; as_country?: string; as_range?: string[]
-      }
-      if (r.as_number) {
-        entries.push({
-          asn: r.as_number,
-          org: r.as_name ?? "",
-          cidrs: r.as_range ?? [],
-          country: r.as_country ?? "",
-        })
-      }
-    } catch { /* skip malformed lines */ }
-  }
-
-  return { entries }
-}
-
 export function parseHttp(apiResult: unknown): HttpResult | null {
-  const raw = apiResult as { results: Array<{ results?: string[] }> }
-  const lines = raw?.results?.[0]?.results ?? []
-  if (!lines.length) return null
-
-  const h = JSON.parse(lines[0]) as {
-    url: string; final_url?: string; title?: string; webserver?: string
-    status_code: number; chain_status_codes?: number[]; content_type?: string
-    tech?: string[]; cpe?: Array<{ cpe: string }>; time?: string
-    content_length?: number; jarm_hash?: string; asn?: string; cname?: string; a?: string[]
+  const raw = apiResult as {
+    results: Array<{
+      url: string; final_url?: string; title?: string; webserver?: string
+      status_code: number; chain_status_codes?: number[]; content_type?: string
+      tech?: string[]; cpe?: Array<{ cpe: string }>; time?: string
+      content_length?: number; jarm_hash?: string; asn?: string; cname?: string; a?: string[]
+    }>
   }
+  const h = raw?.results?.[0]
+  if (!h) return null
 
   return {
     url: h.url,
@@ -303,4 +263,61 @@ export function parseHttp(apiResult: unknown): HttpResult | null {
     cname: h.cname ?? "",
     a: h.a ?? [],
   }
+}
+
+// urlfinder emits historical URLs from passive sources. Each line carries a
+// `url` plus an optional `source` (waybackarchive / commoncrawl / alienvault).
+// The dashboard groups by host so a domain with thousands of paths stays
+// scannable.
+export function parseUrls(apiResult: unknown): UrlsResult {
+  const raw = apiResult as { results: Array<{ url?: string; source?: string }> }
+  const entries: UrlEntry[] = []
+  const sourceMap: Record<string, number> = {}
+  const hostMap: Record<string, number> = {}
+
+  for (const r of raw?.results ?? []) {
+    if (!r.url) continue
+    const source = r.source ?? "unknown"
+    entries.push({ url: r.url, source })
+    sourceMap[source] = (sourceMap[source] ?? 0) + 1
+    try {
+      const host = new URL(r.url).hostname
+      if (host) hostMap[host] = (hostMap[host] ?? 0) + 1
+    } catch { /* malformed URL — skip host bucket */ }
+  }
+
+  return {
+    entries,
+    sourceCounts: Object.entries(sourceMap)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count),
+    hostCounts: Object.entries(hostMap)
+      .map(([host, count]) => ({ host, count }))
+      .sort((a, b) => b.count - a.count),
+  }
+}
+
+// cdncheck emits one line per attributed IP — exactly one of cdn/cloud/waf is
+// true and the matching `<kind>_name` is set. Unattributed IPs produce no line
+// at all (so a domain hosted on its own infra returns an empty `entries`).
+export function parseCdn(apiResult: unknown): CdnResult {
+  const raw = apiResult as {
+    results: Array<{
+      ip?: string
+      cdn?: boolean; cdn_name?: string
+      cloud?: boolean; cloud_name?: string
+      waf?: boolean; waf_name?: string
+    }>
+  }
+  const entries: CdnEntry[] = []
+  for (const r of raw?.results ?? []) {
+    if (!r.ip) continue
+    let kind: CdnKind | null = null
+    let name = ""
+    if (r.cdn && r.cdn_name) { kind = "cdn"; name = r.cdn_name }
+    else if (r.cloud && r.cloud_name) { kind = "cloud"; name = r.cloud_name }
+    else if (r.waf && r.waf_name) { kind = "waf"; name = r.waf_name }
+    if (kind) entries.push({ ip: r.ip, kind, name })
+  }
+  return { entries }
 }

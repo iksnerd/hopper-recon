@@ -68,6 +68,16 @@ export function extractCountry(asn: string): string | null {
 
 const GLOBE_SIZE = 240
 
+// cobe takes sRGB float triples; the design tokens are achromatic oklch in
+// the dark theme so we eyeball the sRGB equivalents:
+//   --card        oklch(0.10) → sphere background blends in if baseColor is the same
+//   --card-hover  oklch(0.14) → ~ 0.10 sRGB
+//   --muted-fg-3  oklch(0.70) → globe land tone — visible but achromatic
+//   --terminal-green oklch(0.85 0.19 145) → green markers (live signal, per design rule)
+const BASE_COLOR:   [number, number, number] = [0.18, 0.18, 0.18] // ~ above card-hover so sphere reads
+const GLOW_COLOR:   [number, number, number] = [0.12, 0.13, 0.12] // faint phosphor-tinted edge
+const MARKER_COLOR: [number, number, number] = [0.40, 0.92, 0.45] // ≈ --terminal-green
+
 interface GeoGlobeProps {
   countries: { code: string; count: number }[]
 }
@@ -97,10 +107,10 @@ export function GeoGlobe({ countries }: GeoGlobeProps) {
       dark: 1,
       diffuse: 1.2,
       mapSamples: 16000,
-      mapBrightness: 7,
-      baseColor: [0.07, 0.07, 0.07],
-      markerColor: [0.9, 0.9, 0.9],
-      glowColor: [0.04, 0.04, 0.04],
+      mapBrightness: 9,
+      baseColor: BASE_COLOR,
+      markerColor: MARKER_COLOR,
+      glowColor: GLOW_COLOR,
       markers,
     })
 
