@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -389,7 +389,7 @@ func runHTTPServer(addr, dbPath string) error {
 	}
 	defer db.Close()
 	policy := LoadPolicy()
-	log.Printf("Hopper Recon engine: db=%s addr=%s", dbPath, addr)
+	slog.Info("starting", "mode", "http", "db", dbPath, "addr", addr)
 
 	mux := http.NewServeMux()
 
@@ -426,7 +426,7 @@ func runHTTPServer(addr, dbPath string) error {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-stop
-		log.Println("shutdown: draining HTTP server")
+		slog.Info("shutdown", "reason", "signal")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = server.Shutdown(ctx)

@@ -66,13 +66,23 @@ No Prettier config exists — match the surrounding file's style (indentation, q
 **Run before declaring work done:**
 
 - `gofmt -w .` (or `go fmt ./...`) — canonical formatting; never commit unformatted Go
-- `go vet ./...` — catches shadowed vars, printf misuse, lock copies
+- `go vet ./...` — catches shadowed vars, lock copies
 - `go build ./...` — must compile clean
+- `go test ./...` — full unit test suite; must pass with zero external deps (no Docker, no network, no binaries)
 - `go mod tidy` — after adding/removing imports; commit the resulting `go.mod` and `go.sum`
 
 Use `go doc <pkg>` / `go doc <pkg>.<Symbol>` to inspect external API shapes before guessing — the MCP SDK and projectdiscovery tools have surprising signatures.
 
 The engine runs inside Docker. After Go changes, rebuild the image: `docker compose build engine` (or `cd engine && docker build -t hopper-recon:latest .`).
+
+**Logging:** the engine uses `log/slog` with a JSON handler (set in `main()` via `slog.SetDefault`). Add new log lines with `slog.Info` / `slog.Warn` / `slog.Error` and key-value pairs, not `log.Printf` format strings.
+
+**Test suite** (`engine/*_test.go`, all `package main`):
+- `policy_test.go` — `Policy.Check`, `inScope`, `LoadPolicy`
+- `db_test.go` — full SQL round-trips on `:memory:` SQLite; helper `newTestDB(t)` available
+- `tools_test.go` — subprocess output stubbed via `var execJSONL = runJSONL` (swap in tests via `withExecJSONL`)
+- `server_test.go` — HTTP handlers via `httptest`; tool dispatch stubbed via `var toolRunner = runTool` (swap via `withToolRunner`); policy helpers `plainPolicy()` / `scopedPolicy(domains...)` available
+- `integration_test.go` — `//go:build integration`; requires real binaries inside Docker; run with `go test -tags integration ./...`
 
 File layout:
 - `engine/main.go` — entrypoint, mode dispatch, MCP tool registration
@@ -86,9 +96,10 @@ File layout:
 2. Add a thin `handle<Name>` in `engine/main.go` for MCP, plus the `mcp.AddTool` call in `buildMCPServer()`.
 3. Add a `case "<name>":` in `runTool` in `engine/server.go` so REST `/scan` can dispatch it.
 4. If a binary is required, add the `RUN go install …` and `COPY --from=builder /go/bin/<bin> /usr/local/bin/<bin>` lines in `engine/Dockerfile` (and the chmod line).
-5. On the web side, add the tool name to `VALID_TOOLS` in `web/src/app/api/scan/route.ts`, write a parser in `web/src/lib/scan-parser.ts` (consume the flat parsed-object array — no JSONL re-parsing), and surface a tab/panel on dashboard + history pages.
-6. Surface attribution: attach a `ToolSourceLink` to the tool's main result Panel on the dashboard (passes the link into the Panel's `action` slot), and add an entry to `RECON_TOOLS` in `web/src/app/(app)/about/page.tsx` so the `/about` credits page lists it.
-7. Rebuild the image (`docker compose build engine`) and recreate the container (`docker compose up -d --force-recreate engine`).
+5. Add tests in `engine/tools_test.go`: use `withExecJSONL` to stub subprocess output and test JSONL parsing + any merge logic. Add handler tests in `engine/server_test.go` for the new `runTool` dispatch case. Run `go test ./...` clean before moving on.
+6. On the web side, add the tool name to `VALID_TOOLS` in `web/src/app/api/scan/route.ts`, write a parser in `web/src/lib/scan-parser.ts` (consume the flat parsed-object array — no JSONL re-parsing), and surface a tab/panel on dashboard + history pages.
+7. Surface attribution: attach a `ToolSourceLink` to the tool's main result Panel on the dashboard (passes the link into the Panel's `action` slot), and add an entry to `RECON_TOOLS` in `web/src/app/(app)/about/page.tsx` so the `/about` credits page lists it.
+8. Rebuild the image (`docker compose build engine`) and recreate the container (`docker compose up -d --force-recreate engine`).
 
 ## Tool admission policy
 

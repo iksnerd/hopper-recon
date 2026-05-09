@@ -14,10 +14,25 @@ Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny clu
 ---
 
 ## In Progress
-_(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
+_(none)_
+
+---
+
+## Done — engine test suite (2026-05-09)
+
+- [x] **`engine/policy_test.go`** — 18 tests covering `Policy.Check` (14 table cases: blocklist, override, passive vs active tools, scope, trailing-dot normalisation), `inScope`, `HasScope`, `LoadPolicy` env parsing + edge cases
+- [x] **`engine/db_test.go`** — 12 tests covering full SQL round-trips on `:memory:` SQLite: schema migration, boot sweep (via temp file), audit write + cooldown query, insert/complete/fail/delete scan, ScanMeta column propagation, purge, list domain filter, list limit default, geoip cache upsert + idempotency
+- [x] **`engine/tools_test.go`** — 12 tests covering `RunDnsx` DMARC merge logic (5 cases: merge, no-DMARC, error-ignored, empty apex, non-JSON apex), subfinder JSONL parsing, GeoIP nil-reader + malformed IP handling, `userAgent` format
+- [x] **`engine/server_test.go`** — 29 tests covering pure functions (`parseJSONLines`, `extractMeta` for both tools, `clientIP` 4 cases, `envOr`, `writeJSON`), all HTTP handlers (`handleHealth`, `handleReady`, `handleConfig`, `handleListScans`, `handleDeleteScan`, `handleRunScan` 6 cases), `MCPCtx.gate` (policy-blocked, allowed, cooldown)
+- [x] **`engine/integration_test.go`** — 4 smoke tests behind `//go:build integration`; excluded from `go test ./...`; require real binaries inside the Docker image
+- [x] Two minimal seam vars added to production code (zero logic change): `var execJSONL = runJSONL` in `tools.go` (7 call sites), `var toolRunner = runTool` in `server.go` (1 call site) — enable test-time injection without interface abstractions
+- [x] **`handleGeoipLookup` handler tests** added to `server_test.go`: empty `ips` param, cache hit, dedup, and cache-miss-without-mmdb cases
+- [x] **`go test -race`** passes clean — no data races on the test-time seam vars
+- [x] **Structured JSON logs** — `slog.SetDefault(slog.NewJSONHandler(os.Stderr, nil))` in `main()`; startup + shutdown messages converted to `slog.Info` key-value pairs; `log.Fatalf` fatals still route through slog automatically
+- [x] **TODO housekeeping** — all shipped v0.2.0 engine + web items ticked; stale unchecked items corrected
 
 ## Follow-ups
-- [ ] Engine refactor — split `engine/main.go` into `engine/cmd/hopper-recon/main.go` + `engine/internal/tools/{subfinder,dnsx,tlsx,httpx,asnmap,uncover,geoip}.go` once the tool count grows beyond ~7 (currently borderline). Naturally aligns with the v0.2.0 engine refactor below.
+- [ ] Engine package split — move to `engine/cmd/hopper-recon/main.go` + `engine/internal/` sub-packages once tool count grows beyond ~10. Currently 7 tools in a single `main` package — borderline but manageable. Revisit at tool 8.
 - [ ] Empty state illustrations for history / dashboard
 - [ ] **DKIM selector enumeration** — engine should query common DKIM selectors (`default`, `google`, `s1/s2`, `selector1/selector2`, `clk/clk2`, `pm`, `resend`, `k1`, `mxvault`) and merge their TXT records into the apex result. Today, parser regex `/v=dkim1|dkim=/` in `scan-parser.ts:172` is greedy and false-positives on `adkim=r` from DMARC records — coincidentally correct for setups that have DKIM, wrong for setups that don't. Tighten regex to `/v=dkim1/i` once selectors are enumerated.
 
@@ -109,7 +124,8 @@ Today's outbound footprint per scan is ~5 DNS queries + 1 TLS handshake + 1 HTTP
 - [x] Verify `docker compose up` works clean from a fresh checkout
 - ~~`.github/workflows/release.yml`~~ — _deleted; operators build locally._
 - [ ] `DEPLOY.md` at repo root — env vars, ports, volumes, backup recipe, upgrade recipe, auth posture ("no built-in auth in v0.1; put behind VPN/oauth2-proxy")
-- [ ] Structured JSON logs to stdout (engine + web — currently plaintext via `log.Printf` / Next default)
+- [x] Structured JSON logs to stdout (engine — `log/slog` JSON handler wired in `main()`; Next default is fine for web)
+- [ ] `DEPLOY.md` — env vars, ports, volumes, backup recipe, upgrade path, auth posture ("no built-in auth in v0.1; put behind VPN/oauth2-proxy")
 - [ ] Helm chart, Kustomize overlays, NetworkPolicy, ServiceMonitor — _deferred; revisit if 5+ issues filed_
 
 ### v0.2.0 — Engine refactor (engine owns SQLite + tools, web is dumb client)
@@ -124,32 +140,32 @@ Today's outbound footprint per scan is ~5 DNS queries + 1 TLS handshake + 1 HTTP
 - SQLite Go driver: **`modernc.org/sqlite`** (pure Go, trivial multi-arch). Recon write volume is too low to need CGo perf.
 
 **Engine:**
-- [ ] Add `serve` subcommand: long-running HTTP server on `:8080`. Default (no args) keeps current stdio MCP for AI-agent compatibility.
-- [ ] Open SQLite at path from `--db` flag or `HOPPER_DB_PATH` env (default `/data/scans.db`). WAL mode. Run sweepStaleScans on boot.
-- [ ] REST endpoints (the full DbAdapter surface, plus the run-tool endpoint that replaces docker spawning):
-  - `POST /scan` — runs tool, persists row, returns final state in one transaction (replaces web's insert→run→complete dance)
-  - `GET /scans?domain=&limit=` — list (covers both `getRecentScans` and `getScansByDomain`)
+- [x] Add `serve` subcommand: long-running HTTP server on `:8080`. Default (no args) keeps current stdio MCP for AI-agent compatibility.
+- [x] Open SQLite at path from `--db` flag or `HOPPER_DB_PATH` env (default `/data/scans.db`). WAL mode. Boot sweep retires stale pending rows.
+- [x] REST endpoints shipped:
+  - `POST /scan` — runs tool, persists row, returns final state in one transaction
+  - `GET /scans?domain=&limit=` — list with domain filter + limit default 50
   - `DELETE /scans/{id}` — delete
-  - `GET /geoip?ips=a,b,c` — cache lookup
-  - `POST /geoip` — upsert batch
-  - `GET /healthz`, `GET /readyz`
-- [ ] Keep MCP recon tools available at `POST /mcp` (Streamable HTTP) for external AI agents that want to connect to a long-running engine.
-- [ ] Split `engine/main.go` into `main.go` (entrypoint + mode dispatch) + `tools.go` (existing recon handlers) + `db.go` (SQLite + queries) + `server.go` (HTTP routes). Resolves the existing followup-list refactor.
-- [ ] Graceful shutdown on SIGTERM, structured JSON logs to stdout.
+  - `GET /geoip?ips=a,b,c` — cache check → live mmdb lookup → upsert in one call (the planned `POST /geoip` upsert-only endpoint was folded in here)
+  - `GET /healthz`, `GET /readyz`, `GET /config`
+- [x] MCP recon tools at `POST /mcp` (Streamable HTTP) — `buildMCPServer` shared between stdio + HTTP modes.
+- [x] `engine/main.go` split into `main.go` + `tools.go` + `db.go` + `server.go`.
+- [x] Graceful shutdown on SIGTERM/SIGINT with 5 s drain.
+- [x] Structured JSON logs to stdout — `slog.SetDefault(slog.NewJSONHandler)` in `main()` routes all `log.*` calls through JSON; startup + shutdown messages converted to `slog.Info` key-value pairs.
 
 **Web:**
-- [ ] Delete `createSqliteAdapter()` and the `better-sqlite3` dependency. Delete `web/data/recon.db` and `.gitignore` it.
-- [ ] Delete `lib/docker-mcp.ts` and `lib/executor.ts` (or stub executor for D1 path only).
-- [ ] New `lib/engine-client.ts` — thin fetch wrapper. ~80 LOC.
-- [ ] `HOPPER_DB_MODE=engine` is the default; `d1` auto-detected when on Cloudflare. `lib/db.ts` keeps only the D1 adapter + a new `createEngineAdapter(baseUrl)` that mirrors `DbAdapter` over fetch.
-- [ ] `/api/scan` route shrinks to a thin proxy: validate input, write audit-log row, forward to engine `POST /scan`, return the response.
-- [ ] Other `/api/scans/*` routes call engine REST via the adapter — URLs and response shapes unchanged so TanStack Query keeps working.
-- [ ] Handle "engine offline" with a clear empty state in UI.
+- [x] `createSqliteAdapter()` and `better-sqlite3` deleted. `web/data/recon.db` abandoned.
+- [x] `lib/docker-mcp.ts` and `lib/executor.ts` deleted.
+- [x] `lib/engine-client.ts` — thin fetch wrapper around engine REST.
+- [x] `lib/db.ts` — `createEngineAdapter()` is the default; D1 auto-detected via `env.DB` presence on Cloudflare. No `HOPPER_DB_MODE` env needed.
+- [x] `/api/scan` route is a thin proxy: validates tool + target, calls `engineClient.runScan`, mirrors `X-Hopper-Recon` header.
+- [x] All `/api/scans/*` routes and `/api/geoip` go through `engine-client.ts`.
+- [x] Engine-offline empty state — dashboard and history surfaces gracefully handle fetch failures from the engine.
 - [ ] Optional per-page: upgrade to Server Components with `initialData` for first-paint wins.
 
 **Compose / docs:**
-- [ ] `docker-compose.yml` at repo root — engine on `:8080` with named `data` volume, web with `ENGINE_URL=http://engine:8080`. Web no longer needs `/var/run/docker.sock`.
-- [ ] DEPLOY.md notes the `web/data/recon.db` is abandoned — fresh DB on first compose-up.
+- [x] `docker-compose.yml` at repo root — engine + web + Litestream sidecars; engine on `:9119` (host-bound loopback), web on `:3000`. Web no longer needs docker socket.
+- [ ] `DEPLOY.md` at repo root — env vars, ports, volumes, backup recipe, upgrade path, auth posture.
 
 ### v0.3.0 — Self-hosted auth, audit, scope
 

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -206,7 +207,7 @@ func buildMCPServer(ctx MCPCtx) *mcp.Server {
 // mcp` from Claude Desktop / Cline. No DB, so audit + cooldown are noops;
 // policy still applies (blocklist + scope) since it's stateless config.
 func runStdioMCP() error {
-	log.Println("Hopper Recon engine: stdio MCP mode")
+	slog.Info("starting", "mode", "stdio-mcp")
 	mcpCtx := MCPCtx{
 		Policy:    LoadPolicy(),
 		Audit:     NoopAuditDB{},
@@ -223,6 +224,8 @@ func usage() {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+
 	if len(os.Args) < 2 {
 		if err := runStdioMCP(); err != nil {
 			log.Fatalf("stdio: %v", err)
