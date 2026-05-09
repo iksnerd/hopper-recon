@@ -4,7 +4,13 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# `npm install` rather than `npm ci`: vitest pulls in platform-specific
+# optional deps (esbuild, oxc, @emnapi/runtime) that npm only records in
+# the lock file for the host that ran `npm install`. Strict `npm ci`
+# rejects the linux container build when the lock was generated on macOS.
+# `npm install` is functionally equivalent here — same package.json, same
+# resolved versions, just permissive about the gap.
+RUN npm install --no-audit --no-fund
 
 # ── build ─────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS build

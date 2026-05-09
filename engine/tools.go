@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,10 +14,16 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-const (
-	geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
-	userAgent   = "hopper-recon/0.2.0 (+https://github.com/iksnerd/hopper-recon)"
-)
+// Version is single-sourced here so MCP server metadata (main.go) and the
+// outbound httpx User-Agent (below) agree at build time. Override at link
+// time with `-ldflags "-X main.Version=v0.3.0"` for tagged releases.
+var Version = "v0.2.0"
+
+const geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
+
+func userAgent() string {
+	return "hopper-recon/" + Version + " (+https://github.com/iksnerd/hopper-recon)"
+}
 
 var (
 	geoipOnce   sync.Once
@@ -37,18 +44,22 @@ func loadGeoipReader() (*geoip2.Reader, error) {
 }
 
 // runJSONL executes a command and returns each non-empty stdout line as a
-// separate string. Any non-zero exit is surfaced as an error along with stderr.
+// separate string. stderr is captured separately and only surfaced on a
+// non-zero exit — keeping warning noise (deprecation notices, retry chatter)
+// out of the JSONL parse path.
 func runJSONL(ctx context.Context, name string, args []string, stdin string) ([]string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
-	out, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w (%s)", name, err, strings.TrimSpace(string(out)))
+		return nil, fmt.Errorf("%s: %w (%s)", name, err, strings.TrimSpace(stderr.String()))
 	}
 	var results []string
-	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for l := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		if l != "" {
 			results = append(results, l)
 		}
@@ -153,7 +164,7 @@ func RunHttpx(ctx context.Context, target string) ([]string, error) {
 			"-u", target, "-silent", "-json",
 			"-title", "-td", "-sc", "-fr", "-location", "-jarm",
 			"-asn", "-cname", "-rt", "-rl", "50",
-			"-H", "User-Agent: " + userAgent,
+			"-H", "User-Agent: " + userAgent(),
 		},
 		"")
 }

@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,8 +79,79 @@ func (db *DB) migrate() error {
 			country    TEXT NOT NULL,
 			fetched_at INTEGER NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS audit_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ts DATETIME DEFAULT CURRENT_TIMESTAMP,
+			source_ip TEXT, user_agent TEXT,
+			tool TEXT, target TEXT,
+			decision TEXT NOT NULL, reason TEXT
+		);
+		CREATE INDEX IF NOT EXISTS idx_audit_ts     ON audit_log(ts DESC);
+		CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log(target);
 	`)
 	return err
+}
+
+// AuditEntry is one row in audit_log. Decision is one of "allowed" or
+// "blocked"; reason is free-form prose (block rationale, override note, etc.).
+type AuditEntry struct {
+	SourceIP  string
+	UserAgent string
+	Tool      string
+	Target    string
+	Decision  string
+	Reason    string
+}
+
+// AuditDB is the slice of *DB the MCP gated handlers need: write an audit
+// row + check whether a (target, tool) was recently allowed. An interface
+// rather than *DB so stdio MCP mode can pass a noop (no DB available).
+type AuditDB interface {
+	WriteAudit(AuditEntry) error
+	RecentAllowedWithin(target, tool string, seconds int) (bool, error)
+}
+
+// NoopAuditDB is the zero-cost implementation used in stdio MCP mode, where
+// no DB is opened and audit/cooldown don't apply (one-shot ephemeral runs).
+type NoopAuditDB struct{}
+
+func (NoopAuditDB) WriteAudit(AuditEntry) error                           { return nil }
+func (NoopAuditDB) RecentAllowedWithin(string, string, int) (bool, error) { return false, nil }
+
+// WriteAudit appends one row. Errors are returned but callers typically log
+// and proceed — failing the user's request because audit-write hiccupped is
+// the wrong trade-off when the target is "operator can grep what happened."
+func (db *DB) WriteAudit(e AuditEntry) error {
+	_, err := db.Exec(
+		`INSERT INTO audit_log (source_ip, user_agent, tool, target, decision, reason)
+		 VALUES (?,?,?,?,?,?)`,
+		e.SourceIP, e.UserAgent, e.Tool, e.Target, e.Decision, e.Reason)
+	return err
+}
+
+// RecentAllowedWithin reports whether (target, tool) had an "allowed"
+// decision in audit_log within the last `seconds` seconds. Querying the
+// audit log instead of the scans table unifies the cooldown across
+// transports — MCP tool calls also write audit rows, so a Claude Code
+// agent and the dashboard can't dodge each other's cooldown by switching
+// transports.
+func (db *DB) RecentAllowedWithin(target, tool string, seconds int) (bool, error) {
+	var n int
+	err := db.QueryRow(
+		`SELECT 1 FROM audit_log
+		 WHERE target=? AND tool=? AND decision='allowed'
+		   AND ts > datetime('now', ?)
+		 LIMIT 1`,
+		target, tool, "-"+strconv.Itoa(seconds)+" seconds",
+	).Scan(&n)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return false, err
 }
 
 // InsertScan records a new pending scan row.

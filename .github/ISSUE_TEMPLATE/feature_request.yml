@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a capability that doesn't exist yet
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hopper Recon is small and opinionated. Useful framing for feature proposals:
+        - What problem are you trying to solve? (Not "I want feature X" but "I'm trying to do Y and the friction is Z.")
+        - Have you already worked around this? How?
+        - What does the simplest version of this look like?
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-facing thing isn't possible / is too painful today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Optional. Sketch the simplest change that would solve it.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Workarounds you've used or other tools that solve this.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This proposal does not weaken the built-in protections (blocklist / cooldown / audit log / scope filter / loopback bind).
+          required: true
+        - label: This proposal does not require an API key as a hard prerequisite (optional enrichment is fine).
+          required: true

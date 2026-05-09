@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: https://github.com/iksnerd/hopper-recon/blob/main/SECURITY.md
+    about: Vulnerabilities go to iksnerd@users.noreply.github.com — please do not open a public issue.
+  - name: Authorized-use posture
+    url: https://github.com/iksnerd/hopper-recon/blob/main/SECURITY.md#authorized-use-posture
+    about: Run only against assets you own or are authorized to test.

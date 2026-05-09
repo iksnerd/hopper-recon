@@ -10,9 +10,11 @@ Self-hosted, MCP-native security reconnaissance dashboard. A **Go engine** wraps
 
 > ## Authorized use only
 >
-> Hopper Recon sends DNS, TLS handshake, and HTTP traffic to any target you give it. **Run only against assets you own or have written authorization to test.** Outbound footprint per scan against a single target is roughly **5 DNS queries + 1 TLS handshake + 1 HTTP GET** — equivalent to one browser tab. It is not a stealth tool: HTTP probes identify themselves with a `hopper-recon/0.2.0 (+https://github.com/iksnerd/hopper-recon)` User-Agent so target operators can attribute traffic and request exclusion.
+> Hopper Recon sends DNS, TLS handshake, and HTTP traffic to any target you give it. **Run only against assets you own or have written authorization to test.** Outbound footprint per scan against a single target is roughly **5 DNS queries + 1 TLS handshake + 1 HTTP GET** — equivalent to one browser tab. It is not a stealth tool: HTTP probes identify themselves with a `hopper-recon/<version> (+https://github.com/iksnerd/hopper-recon)` User-Agent so target operators can attribute traffic and request exclusion.
 >
-> The maintainers do not consent to use of this software against unauthorized third-party infrastructure. See [SECURITY.md](./SECURITY.md) for the full posture (coming with v0.1.0 OSS release).
+> The maintainers do not consent to use of this software against unauthorized third-party infrastructure. See [SECURITY.md](./SECURITY.md) for the full posture and disclosure contact.
+
+![Dashboard with operator advisory banner](./docs/screenshots/02-dashboard-with-banner.png)
 
 ---
 
@@ -26,6 +28,37 @@ Self-hosted, MCP-native security reconnaissance dashboard. A **Go engine** wraps
 - **Self-hosted** — `docker compose up` to a working install. SQLite for storage, no external services required
 - **Continuous backup via Litestream** — WAL streaming to a local file volume by default; flip a config block to replicate to S3 / R2 / Azure Blob / GCS instead
 - **No Docker socket on the web** — the web container talks to the engine over HTTP, so it runs on platforms that forbid privileged containers (Cloud Run, Fly Machines, k8s rootless, etc.)
+
+---
+
+## Built-in protections
+
+These ship enabled by default. They live at the **engine** layer (not the web), so direct MCP callers — Claude Code, Cline, one-shot stdio agents — hit the same gates as the dashboard. Full posture in [SECURITY.md](./SECURITY.md); env knobs in [`.env.example`](./.env.example).
+
+| Protection | What it does | Override |
+|---|---|---|
+| **Restricted-suffix blocklist** | Refuses active probes (`probe_http`, `fetch_tls_cert`) against `.gov`, `.mil`, `.gouv.fr`, `.gov.uk`, `.go.jp`, `.gc.ca`, `.gov.au`. Returns HTTP 451. | `HOPPER_OVERRIDE_BLOCKLIST=true` + non-empty `HOPPER_BLOCKLIST_OVERRIDE_REASON` (audit-logged) |
+| **Per-target cooldown** | 60s window per `(target, tool)` pair. Repeats return HTTP 429 with `Retry-After`. Stops mash-the-button accidents. | None — wait it out |
+| **Audit log** | Every `/scan` writes one row to `audit_log` with timestamp, source IP, User-Agent, tool, target, decision (allowed / blocked), and reason. | Read with `sqlite3 /data/scans.db 'SELECT * FROM audit_log'` |
+| **Scope filter** | When `HOPPER_ALLOWED_DOMAINS` is set, all tools refuse targets outside the listed apexes. Returns HTTP 403. | Unset or extend the list |
+| **Custom User-Agent** | `httpx` probes carry `hopper-recon/<version> (+repo URL)` so target operators can attribute and request exclusion. | None — set on every request by design |
+| **Operator advisory banner** | First-boot UI banner when neither scope nor auth is configured. Dismissable per-browser. | Configure scope or live with the nag |
+| **Loopback engine bind** | Compose binds engine to `127.0.0.1:9119` only. LAN/WAN exposure requires deliberate config change. | Edit `docker-compose.yml` ports + put auth in front first |
+
+`/api/scan` and the engine respond with `X-Hopper-Recon: authorized-use-only` so any reverse-proxy or CDN log identifies the tool.
+
+The `/config` endpoint on the engine reports scope/auth state as booleans (no env values leaked) — used by the dashboard banner and useful for monitoring.
+
+---
+
+## Screenshots
+
+| | |
+|---|---|
+| **Landing** — `/` shows what the tool does, with a static example. | **History** — `/history` lists every scanned domain with cert/HTTP/tech metadata, geo distribution, scan-recency. |
+| ![Landing page](./docs/screenshots/01-landing.png) | ![History list](./docs/screenshots/03-history.png) |
+| **Dashboard** — `/dashboard` runs all OSINT tools in parallel against a target. Recent targets idle state appears when no scan is active. The advisory banner appears when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured. | **Domain detail** — `/history/<domain>` shows the full picture: findings strip, geo globe, subdomain breakdown with category histogram, full HTTP/DNS/TLS panels, scan timeline. |
+| ![Dashboard with banner](./docs/screenshots/02-dashboard-with-banner.png) | ![Domain detail page for iana.org](./docs/screenshots/05-history-detail-iana.png) |
 
 ---
 
@@ -124,11 +157,16 @@ The HTTP variant connects to your long-running engine and shares the dashboard's
 
 ## Configuration
 
+Full reference + commented Litestream cloud-replica blocks live in [`.env.example`](./.env.example). Copy it to `.env` next to `docker-compose.yml`; both engine and Litestream sidecars pick it up automatically.
+
 | Env / file | Default | Purpose |
 |---|---|---|
 | `ENGINE_URL` | `http://127.0.0.1:9119` (dev) / `http://engine:8080` (compose) | Where the web finds the engine |
 | `HOPPER_DB_PATH` | `/data/scans.db` | SQLite path inside the engine container |
 | `HOPPER_ADDR` | `:8080` | Engine HTTP listen address |
+| `HOPPER_ALLOWED_DOMAINS` | _(unset)_ | Comma-separated apex list; off-scope targets return 403. Unset = scan anything (dashboard then nags) |
+| `HOPPER_OVERRIDE_BLOCKLIST` | _(unset)_ | Set to `true` (with `HOPPER_BLOCKLIST_OVERRIDE_REASON`) to allow `.gov` / `.mil` / equivalent probes. Audit-logged. |
+| `HOPPER_BLOCKLIST_OVERRIDE_REASON` | _(unset)_ | Free-text reason recorded in `audit_log` when an override fires. Both vars must be non-empty. |
 | `~/.config/subfinder/` | — | Subfinder config + optional API keys (rw mount) |
 | `~/.config/hopper-recon/GeoLite2-Country.mmdb` | — | MaxMind GeoLite2 (ro mount, optional) |
 

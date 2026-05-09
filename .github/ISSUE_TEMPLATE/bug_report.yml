@@ -1,0 +1,59 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security-relevant bugs go to **iksnerd@users.noreply.github.com**, not here — see [SECURITY.md](https://github.com/iksnerd/hopper-recon/blob/main/SECURITY.md).
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Engine version (`curl http://127.0.0.1:9119/config | jq .version`) or commit SHA.
+      placeholder: v0.1.0 / 3f2a1c7
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running it?
+      options:
+        - docker compose up (default)
+        - npm run dev (web only) + compose engine
+        - Custom k8s / Nomad / Fly / other
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what actually happened. Steps to reproduce.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Engine logs
+      description: Output of `docker compose logs engine --tail 200` (redact anything sensitive).
+      render: shell
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console / network output
+      description: Only if the bug is UI-side. Open DevTools, reproduce, paste relevant errors.
+      render: shell
+
+  - type: checkboxes
+    id: posture
+    attributes:
+      label: Authorized-use confirmation
+      options:
+        - label: I am running this against assets I own or am authorized to test.
+          required: true

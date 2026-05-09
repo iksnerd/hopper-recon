@@ -1,7 +1,5 @@
 import { engineClient } from "@/lib/engine-client"
 
-export const runtime = "nodejs"
-
 export async function POST(req: Request) {
   const { ips } = (await req.json()) as { ips: string[] }
   if (!Array.isArray(ips) || ips.length === 0) {

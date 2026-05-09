@@ -26,8 +26,10 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install dependencies for tools (ca-certs for HTTPS, wget for healthcheck).
-RUN apk add --no-cache ca-certificates libc6-compat wget
+# ca-certs for outbound HTTPS, wget for the compose healthcheck. libc6-compat
+# isn't needed: builder + runtime are both alpine (musl) and the Go binaries
+# are static.
+RUN apk add --no-cache ca-certificates wget
 
 # GeoLite2-Country.mmdb is volume-mounted at runtime (license-restricted, can't bake in).
 # Pre-create the mount directory and the SQLite data dir.
@@ -48,8 +50,9 @@ RUN chmod +x /usr/local/bin/subfinder /usr/local/bin/dnsx /usr/local/bin/httpx /
 EXPOSE 8080
 VOLUME ["/data"]
 
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
-  CMD wget -qO- http://localhost:8080/healthz || exit 1
+# Healthcheck is owned by docker-compose (or k8s livenessProbe in prod) so the
+# stdio MCP path (`docker run -i hopper-recon mcp`) doesn't pointlessly try to
+# wget :8080 in a process that never opens it.
 
 # Default to long-running HTTP server (compose path).
 # AI agents wanting the stdio MCP transport invoke `docker run -i hopper-recon:latest mcp`.

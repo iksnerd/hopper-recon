@@ -32,6 +32,12 @@ services:
     depends_on:
       litestream-restore:
         condition: service_completed_successfully
+    # Engine reads HOPPER_ALLOWED_DOMAINS / HOPPER_OVERRIDE_BLOCKLIST /
+    # HOPPER_BLOCKLIST_OVERRIDE_REASON from this file (see .env.example).
+    # required: false keeps `docker compose up` working in dev with no .env.
+    env_file:
+      - path: ./.env
+        required: false
     volumes:
       - engine-data:/data
       # subfinder bootstraps its own config.yaml on first run, so this mount
@@ -84,7 +90,10 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      # 127.0.0.1 (not localhost) because BusyBox wget on node:22-alpine
+      # tries IPv6 first; Next.js standalone binds IPv4 only, so the v6
+      # attempt gets "connection refused" and the healthcheck fails.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/healthz"]
       interval: 10s
       timeout: 3s
       retries: 3
