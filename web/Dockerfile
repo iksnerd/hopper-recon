@@ -25,7 +25,10 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
+# 9120 (not the Next.js default 3000) to avoid colliding with the dozen
+# other dev servers operators have running locally. Mirrors compose
+# port mapping. Sits next to the engine on 9119.
+ENV PORT=9120
 ENV HOSTNAME=0.0.0.0
 
 # node:22-alpine ships a `node` user (uid 1000, gid 1000) — reuse it
@@ -36,8 +39,8 @@ COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 
-EXPOSE 3000
+EXPOSE 9120
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
-  CMD wget -qO- http://localhost:3000 || exit 1
+  CMD wget -qO- http://localhost:9120 || exit 1
 
 CMD ["node", "server.js"]

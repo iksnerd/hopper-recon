@@ -132,7 +132,7 @@ curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmd
 # Bring up the stack
 docker compose up -d --build
 
-# Dashboard at http://localhost:3000
+# Dashboard at http://localhost:9120
 # Engine REST + MCP at http://127.0.0.1:9119 (loopback only)
 ```
 
@@ -265,7 +265,7 @@ docker compose build engine    # after any Go change
 ```bash
 docker compose up -d engine    # engine on :9119 only
 cd web && npm install && npm run dev
-# → http://localhost:3000, ENGINE_URL defaults to http://127.0.0.1:9119
+# → http://localhost:9120, ENGINE_URL defaults to http://127.0.0.1:9119
 ```
 
 ### Adding a tool

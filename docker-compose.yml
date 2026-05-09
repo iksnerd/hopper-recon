@@ -87,13 +87,17 @@ services:
         condition: service_healthy
     environment:
       - ENGINE_URL=http://engine:8080
+    # Web binds host:9120 → container:9120. Off the well-known :3000 to
+    # avoid colliding with the dozen other Next/CRA/Vite dev servers most
+    # operators have running locally. Sits next to the engine's :9119 so
+    # both hopper-recon ports are obviously the same project.
     ports:
-      - "3000:3000"
+      - "9120:9120"
     healthcheck:
       # 127.0.0.1 (not localhost) because BusyBox wget on node:22-alpine
       # tries IPv6 first; Next.js standalone binds IPv4 only, so the v6
       # attempt gets "connection refused" and the healthcheck fails.
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9120/api/healthz"]
       interval: 10s
       timeout: 3s
       retries: 3

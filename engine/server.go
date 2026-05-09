@@ -18,6 +18,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// toolRunner is the dispatch function used by handleRunScan. Tests swap it to
+// return canned results without touching real tool binaries.
+var toolRunner = runTool
+
 // runTool dispatches to the right tool function and returns parsed JSON
 // values. Lines that aren't valid JSON are passed through as raw strings so
 // the web layer's existing parser keeps working.
@@ -230,7 +234,7 @@ func handleRunScan(db *DB, policy *Policy) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 		defer cancel()
 
-		results, runErr := runTool(ctx, req.Tool, req.Target)
+		results, runErr := toolRunner(ctx, req.Tool, req.Target)
 		if runErr != nil {
 			_ = db.FailScan(id, runErr.Error())
 			writeJSON(w, http.StatusOK, scanResponse{

@@ -43,6 +43,10 @@ func loadGeoipReader() (*geoip2.Reader, error) {
 	return geoipReader, geoipErr
 }
 
+// execJSONL is the subprocess executor used by all Run* functions. Tests swap
+// it to return canned JSONL without spawning real binaries.
+var execJSONL = runJSONL
+
 // runJSONL executes a command and returns each non-empty stdout line as a
 // separate string. stderr is captured separately and only surfaced on a
 // non-zero exit — keeping warning noise (deprecation notices, retry chatter)
@@ -75,7 +79,7 @@ type SubfinderEntry struct {
 
 // RunSubfinder performs strictly passive subdomain enumeration via OSINT.
 func RunSubfinder(ctx context.Context, domain string) ([]SubfinderEntry, error) {
-	out, err := runJSONL(ctx, "subfinder",
+	out, err := execJSONL(ctx, "subfinder",
 		[]string{"-d", domain, "-silent", "-all", "-oJ", "-cs"}, "")
 	if err != nil {
 		return nil, err
@@ -93,7 +97,7 @@ func RunSubfinder(ctx context.Context, domain string) ([]SubfinderEntry, error) 
 // RunDnsx resolves a domain and merges _dmarc.<domain> TXT records into the
 // apex result so the parser can detect DMARC presence at the same level as SPF.
 func RunDnsx(ctx context.Context, target string) ([]string, error) {
-	results, err := runJSONL(ctx, "dnsx",
+	results, err := execJSONL(ctx, "dnsx",
 		[]string{"-silent", "-a", "-aaaa", "-cname", "-ns", "-mx", "-txt", "-cdn", "-asn", "-json"},
 		target+"\n")
 	if err != nil {
@@ -103,7 +107,7 @@ func RunDnsx(ctx context.Context, target string) ([]string, error) {
 		return results, nil
 	}
 
-	dmarcLines, dmarcErr := runJSONL(ctx, "dnsx",
+	dmarcLines, dmarcErr := execJSONL(ctx, "dnsx",
 		[]string{"-silent", "-txt", "-json"},
 		"_dmarc."+target+"\n")
 	if dmarcErr != nil || len(dmarcLines) == 0 {
@@ -133,7 +137,7 @@ func RunDnsx(ctx context.Context, target string) ([]string, error) {
 
 // RunTlsx fetches the public TLS certificate plus hardening signals.
 func RunTlsx(ctx context.Context, target string) ([]string, error) {
-	return runJSONL(ctx, "tlsx",
+	return execJSONL(ctx, "tlsx",
 		[]string{"-u", target, "-so", "-tv", "-cipher", "-wc", "-expired", "-self-signed", "-silent", "-json"},
 		"")
 }
@@ -142,7 +146,7 @@ func RunTlsx(ctx context.Context, target string) ([]string, error) {
 // provider using cdncheck's bundled CIDR lists. Pure offline lookup once the
 // IPs are resolved — no requests reach the target operator.
 func RunCdncheck(ctx context.Context, target string) ([]string, error) {
-	return runJSONL(ctx, "cdncheck",
+	return execJSONL(ctx, "cdncheck",
 		[]string{"-i", target, "-resp", "-jsonl", "-silent"},
 		"")
 }
@@ -151,7 +155,7 @@ func RunCdncheck(ctx context.Context, target string) ([]string, error) {
 // (waybackarchive, commoncrawl, alienvault). No requests to the target.
 // Uses -jsonl (urlfinder's flag) rather than the -json other PD tools take.
 func RunUrlfinder(ctx context.Context, domain string) ([]string, error) {
-	return runJSONL(ctx, "urlfinder",
+	return execJSONL(ctx, "urlfinder",
 		[]string{"-d", domain, "-all", "-silent", "-jsonl"},
 		"")
 }
@@ -159,7 +163,7 @@ func RunUrlfinder(ctx context.Context, domain string) ([]string, error) {
 // RunHttpx probes a target for HTTP services. The custom User-Agent identifies
 // the scan to target operators so they can attribute / request exclusion.
 func RunHttpx(ctx context.Context, target string) ([]string, error) {
-	return runJSONL(ctx, "httpx",
+	return execJSONL(ctx, "httpx",
 		[]string{
 			"-u", target, "-silent", "-json",
 			"-title", "-td", "-sc", "-fr", "-location", "-jarm",

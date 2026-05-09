@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# web — Next.js 16 dashboard
 
-## Getting Started
+Thin HTTP client over the engine. The engine owns SQLite + the recon
+binaries; this is just rendering. See the root [`README.md`](../README.md)
+for what the project does and the root [`CLAUDE.md`](../CLAUDE.md) for the
+agent-facing guide.
 
-First, run the development server:
+## Run
+
+In compose (preferred — engine + Litestream sidecars come along for the ride):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd .. && docker compose up -d --build
+# Dashboard at http://localhost:9120
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Outside compose, against a host-bound engine:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose up -d engine        # engine on 127.0.0.1:9119
+npm install
+npm run dev                        # http://localhost:9120
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`ENGINE_URL` defaults to `http://127.0.0.1:9119` for local dev and is set
+to `http://engine:8080` in compose via the compose file.
 
-## Learn More
+## Pre-commit
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx tsc --noEmit
+npm run lint
+npm test
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Layout pointers
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app/` — App Router pages + API routes (proxies to engine)
+- `src/lib/engine-client.ts` — the only place the web reads from / writes to the engine
+- `src/lib/db.ts` — `EngineDBAdapter` (default) + `D1Adapter` (Cloudflare detect)
+- `src/lib/scan-parser.ts` — turns engine results into the dashboard's view types
+- `src/components/recon/` — `ReconCard`, `Panel`, `PageHeader`, `OperatorWarningBanner`, etc.

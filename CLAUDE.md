@@ -26,7 +26,7 @@ host                                 docker compose
                                        │
                                        │  HTTP (REST)
                        web container ──┘
-                       :3000 → host
+                       :9120 → host
 ```
 
 The host binds engine port `9119` (off the well-known 8080) for AI clients (Claude Code, Cline, etc.) to connect to MCP at `http://127.0.0.1:9119/mcp`.

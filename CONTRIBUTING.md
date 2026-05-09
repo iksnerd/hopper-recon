@@ -24,7 +24,7 @@ curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmd
 # Bring up the stack (engine + web + Litestream sidecars)
 docker compose up -d --build
 
-# Web at http://localhost:3000
+# Web at http://localhost:9120
 # Engine REST + MCP at http://127.0.0.1:9119 (loopback only)
 ```
 
