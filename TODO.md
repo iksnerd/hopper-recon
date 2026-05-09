@@ -3,11 +3,11 @@
 ## Critical path — self-hosted on k8s
 The shortest road to "a company can deploy this on their Kubernetes cluster, free":
 
-1. **v0.1.0 OSS release** — license + docs + CI + multi-arch images (weeks 1–2)
-2. **v0.1.0 K8s package** — Helm chart + Kustomize + pod-security defaults (weeks 2–3)
+1. **v0.1.0 OSS release** — license + docs + CI checks workflow ✓ (image publishing intentionally deferred — operators build locally; bring back `release.yml` from git history if needed)
+2. **v0.1.0 K8s package** — Helm chart + Kustomize + pod-security defaults — _deferred; lean compose-first shape ships first_
 3. **v0.3.0 Self-hosted auth** — Auth.js + audit log + scope config (weeks 3–4) — required for >5 users; smaller teams can run with `AUTH_MODE=none` behind a VPN
 
-**v0.2.0 engine refactor is optional for this path** — current SaaS-shaped architecture deploys to k8s fine. Pursue the engine refactor separately for the "MCP-native, engine is a product on its own" narrative.
+**v0.2.0 engine refactor shipped** — engine owns SQLite + recon tools, web is a thin HTTP client, MCP at `/mcp` for AI agents.
 
 Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny cluster (Hetzner CX11 or Oracle Free Tier ARM) $0–5/mo. Real operational cost is upstream API quotas (Shodan/Censys), which is the customer's bill with those vendors.
 
@@ -63,22 +63,22 @@ _(none — UX overhaul shipped; OSS prep + engine refactor are next milestones)_
 - **Self-hosted does NOT require Clerk** (Clerk is cloud-only, breaks self-hosting). OSS uses Auth.js (OIDC/SAML/email magic link, all OSS) with `AUTH_MODE=none|email|oidc|saml` env switch — `none` for "behind a VPN" simple case.
 
 ### v0.1.0 — OSS public release
-- [x] **License decision** — ship MIT (already in `LICENSE`). BSL 1.1 was considered for cloud strip-mining protection; rejected because (a) niche security tooling is not a hyperscaler target, (b) MIT maximises adoption which is the real v0.1 risk, (c) future SaaS-only code can land in the private `hopper-recon-cloud` repo under whatever license we want without touching OSS history. If a competitor materialises, relicense *future* OSS code under BSL behind a CLA — past tags stay MIT.
+- [x] **License decision** — ship MIT (already in `LICENSE`). BSL 1.1 was considered for cloud strip-mining protection; rejected because (a) niche security tooling is not a hyperscaler target, (b) MIT maximises adoption which is the real v0.1 risk, (c) future SaaS-only code can land in the private `hopper-recon-cloud` repo under whatever license we want without touching OSS history.
 - [x] `LICENSE` at repo root (MIT, present)
-- [ ] `SECURITY.md` — responsible disclosure, contact email
-- [ ] `CODE_OF_CONDUCT.md` — Contributor Covenant
-- [ ] `CONTRIBUTING.md` — PR style, dev setup, commit conventions
-- [ ] `README.md` rewrite — what it does, 30-second install, screenshots from new UI, **prominent authorized-use disclaimer block at the top** (not buried), outbound-traffic footprint table per scan (DNS queries / TLS handshake / HTTP GET / OSINT API calls — so users know exactly what they're sending), list of tools, scope/limits, k8s install in first 3 sections
-- [ ] `SECURITY.md` content must include explicit authorized-use posture: "this tool sends DNS/TLS/HTTP traffic to targets you supply. You are the operator. Run only against assets you own or are authorized to test. The maintainers do not consent to use against unauthorized third-party infrastructure." (Sets legal tone + something to point at.)
-- [ ] `.env.example` — every env var documented
-- [ ] `CHANGELOG.md` — start at v0.1.0
-- [ ] `docker-compose.yml` — engine + web + SQLite volume + provider-config volume; `docker compose up` to a working install
-- [ ] `.github/workflows/ci.yml` — `tsc --noEmit`, `npm run lint`, `gofmt`, `go vet`, `go build`
-- [ ] `.github/workflows/release.yml` — multi-arch image build (amd64 + arm64) → GHCR, cosign signing, syft SBOM
-- [ ] `.github/ISSUE_TEMPLATE/*`, `PULL_REQUEST_TEMPLATE.md`
+- [x] `SECURITY.md` — authorized-use posture, outbound-footprint table, built-in protections, disclosure SLA (3/10/30 days)
+- [x] `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1 link, contact email
+- [x] `CONTRIBUTING.md` — dev setup, pre-commit checks per side, PR conventions, recon-tool admission rule
+- [x] `README.md` rewrite — authorized-use disclaimer at top, outbound-footprint, "Built-in protections" table, screenshots grid, configuration env table
+- [x] `.env.example` — every env var documented + commented Litestream cloud-replica blocks
+- [x] `CHANGELOG.md` (Keep a Changelog format) starting at v0.1.0
+- [x] `docker-compose.yml` at repo root (engine + web + Litestream sidecars, named volumes, env_file with required: false)
+- [x] `.github/workflows/ci.yml` — gofmt -l, go vet, go mod tidy --diff (engine); tsc --noEmit, eslint, vitest (web). Checks-only, no artifacts.
+- [x] `.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}.yml` + `PULL_REQUEST_TEMPLATE.md` with authorized-use confirmation checkboxes
+- [x] `v0.1.0` git tag pushed (release pipeline removed; bring back if/when we want signed multi-arch GHCR images)
+- ~~`.github/workflows/release.yml`~~ — _deleted (commit `599bd20`); operators build locally with `docker compose up --build`. Multi-arch GHCR + cosign + SBOM is in git history if we ever want it back._
 - [ ] CLA bot ([cla-assistant.io](https://cla-assistant.io/)) — protects ability to relicense if needed
 - [ ] Trademark research on "hopper-recon" (register if going SaaS later)
-- [ ] Tag v0.1.0 + GitHub release notes
+- [ ] GitHub Release page for v0.1.0 (tag exists; no Release entry yet)
 - [ ] Soft launch: r/netsec, r/AskNetsec, HN Show, projectdiscovery Discord, Anthropic/MCP-aware audiences
 
 ### v0.1.0 — Abuse mitigations (must ship before public release)
@@ -87,31 +87,30 @@ These are not "nice to have" — they ship with v0.1 because they're cheap, they
 
 Today's outbound footprint per scan is ~5 DNS queries + 1 TLS handshake + 1 HTTP GET against the target — equivalent to one browser tab. The risk is not the current default, it's the planned "scan all discovered subdomains" feature multiplying that by 50–500.
 
-- [ ] **Custom User-Agent on httpx** — `hopper-recon/0.1.0 (+https://github.com/iksnerd/hopper-recon)`. Two-line change: pass `-H "User-Agent: ..."` to httpx in `engine/main.go:218`. Lets target operators attribute traffic and request exclusion. Industry norm for security tooling.
-- [ ] **Hardcoded blocklist baked into the engine** — refuse active probes (`probe_http`, `fetch_tls_cert`, `search_hosts`, `map_asn`) against `*.gov`, `*.mil`, `*.gouv.fr`, `*.gov.uk`, `*.go.jp`, `*.gc.ca`, `*.gov.au`, ICANN root domains, NATO/UN/IANA-reserved ranges, and a small list of obvious critical-infra (financial regulators: SEC, FINRA, FCA, BaFin, MAS, etc.). Override requires explicit `HOPPER_OVERRIDE_BLOCKLIST=true` env *plus* a non-empty `HOPPER_BLOCKLIST_OVERRIDE_REASON` written to the audit log. Block at the engine layer, not the web layer, so direct MCP callers get the same protection. _Was scoped to v0.3 — promoted to v0.1._
-- [ ] **Per-target cooldown** — refuse `/api/scan` if the same `(target, tool)` was scanned in the last 60 s; return 429 with a `Retry-After` header. Single SQL check in `web/src/app/api/scan/route.ts` against the existing `scans` table. Stops mash-the-button accidents and trivial automated abuse.
-- [ ] **Audit log table — always on, even with no auth.** New `audit_log` table: `(id, ts, source_ip, user_agent, tool, target, decision: 'allowed'|'blocked', reason)`. Middleware on `/api/scan` writes a row before invoking the engine, and on every block (cooldown / blocklist / off-scope). Operator can `tail -f` audit logs to investigate. _Was scoped to v0.3 — promoted to v0.1; auth integration in v0.3 just adds `user_id` column._
-- [ ] **Optional `ALLOWED_DOMAINS` env / `assets.yaml` scope config** — when set, off-scope scans are blocked with a clear UI error. When unset, behaviour matches today (scan anything). `STRICT_SCOPE=true` is implicit when `ALLOWED_DOMAINS` is set. _Was scoped to v0.3 — promoted to v0.1; doesn't need auth to be useful._
-- [ ] **First-boot warning banner in the UI** — when neither `ALLOWED_DOMAINS` nor an auth mode is configured, show a persistent dismissable banner at the top of dashboard + history: "Running with no authentication and no scope filter. Operate only against domains you own or have written authorization for." Acknowledgement stored per-install (single row in a `settings` table) so it's not nagging every page load forever, but visible until clicked.
-- [ ] **`/api/scan` response headers** — add `X-Hopper-Recon: authorized-use-only` and `Server: hopper-recon/0.1.0` so any reverse-proxy/CDN logs identify the tool clearly.
-- [ ] Audit-log viewer in `/admin` is deferred to v0.3 (needs auth to expose) — for v0.1, ops read the table via SQLite CLI or by mounting the volume. That's enough.
+- [x] **Custom User-Agent on httpx** — `hopper-recon/<Version> (+repo URL)` set in `engine/tools.go`. Single-sourced via `var Version` so MCP serverInfo and UA stay in lockstep.
+- [x] **Hardcoded blocklist** in `engine/policy.go` — refuses active probes (`probe_http`, `fetch_tls_cert`) against `*.gov`, `*.mil`, `*.gouv.fr`, `*.gov.uk`, `*.go.jp`, `*.gc.ca`, `*.gov.au`. Returns HTTP 451. Override gated behind `HOPPER_OVERRIDE_BLOCKLIST=true` + non-empty `HOPPER_BLOCKLIST_OVERRIDE_REASON`, audit-logged. Lives at the engine — direct MCP callers hit the same gate via `MCPCtx.gate()`.
+- [x] **Per-target cooldown** — 60 s window keyed on `(target, tool)` reading `audit_log` (so MCP and REST share one cooldown surface — agents can't dodge it by switching transports). Returns 429 with `Retry-After`.
+- [x] **Audit log table** — schema in `engine/db.go` (`id, ts, source_ip, user_agent, tool, target, decision, reason`). Every `/scan` and gated MCP call writes one row. Operator reads via `sqlite3 /data/scans.db` against the volume.
+- [x] **`HOPPER_ALLOWED_DOMAINS` scope config** — when set, off-scope targets return 403 + audit row. When unset, behaviour matches today (scan anything) and the dashboard banner nags.
+- [x] **First-boot warning banner** — `OperatorWarningBanner` in `(app)/layout.tsx`. `useSyncExternalStore` for the localStorage ack so dismissal refreshes across tabs. Reads engine `/config` (booleans only).
+- [x] **`X-Hopper-Recon: authorized-use-only`** header on every `/scan` response (engine + web proxy).
+- [ ] `Server: hopper-recon/0.1.0` header — _minor; the X-Hopper-Recon header serves the same identification purpose._
+- [ ] Audit-log viewer in `/admin` deferred to v0.3 (needs auth to expose).
 
 ### v0.1.0 — Production deployment package (lean, compose-first)
 
 > Full plan: [`docs/v0.1.0-prod-deploy-plan.md`](docs/v0.1.0-prod-deploy-plan.md). Helm chart / Kustomize / NetworkPolicy / ServiceMonitor templates intentionally deferred — operators write those themselves to fit their existing infrastructure.
 
-- [ ] `Dockerfile` for the web app (Next.js standalone build, multi-arch)
-- [ ] `Dockerfile` for the engine — already exists; add `USER 1000:1000`, healthcheck, multi-arch build target
-- [ ] `/healthz` endpoint on engine (Go, ~10 LOC)
-- [ ] `/readyz` endpoint on engine (checks SQLite is reachable)
-- [ ] `/api/healthz` route on web (Next.js, ~5 LOC)
-- [ ] `/api/readyz` route on web (checks engine is reachable)
-- [ ] Reference `docker-compose.yml` at repo root (engine + web + volumes)
+- [x] `Dockerfile` for the web app (Next.js standalone build) — `web/Dockerfile`, runs as `node` user (uid 1000)
+- [x] `Dockerfile` for the engine — `engine/Dockerfile`, two-stage build, alpine runtime
+- [x] `/healthz` + `/readyz` on engine
+- [x] `/api/healthz` + `/api/readyz` on web
+- [x] Reference `docker-compose.yml` at repo root — engine + web + Litestream sidecars; engine reads `.env` via env_file with `required: false`
+- [x] Verify `docker compose up` works clean from a fresh checkout
+- ~~`.github/workflows/release.yml`~~ — _deleted; operators build locally._
 - [ ] `DEPLOY.md` at repo root — env vars, ports, volumes, backup recipe, upgrade recipe, auth posture ("no built-in auth in v0.1; put behind VPN/oauth2-proxy")
-- [ ] `.github/workflows/release.yml` — on tag, build multi-arch (`linux/amd64` + `linux/arm64`) → GHCR, cosign signing, syft SBOM
-- [ ] Structured JSON logs to stdout (engine + web)
-- [ ] Verify `docker compose up` works clean from a fresh checkout
-- [ ] Helm chart, Kustomize overlays, NetworkPolicy, ServiceMonitor — _deferred; revisit at v0.2.0 once engine refactor lands and only if 5+ issues filed_
+- [ ] Structured JSON logs to stdout (engine + web — currently plaintext via `log.Printf` / Next default)
+- [ ] Helm chart, Kustomize overlays, NetworkPolicy, ServiceMonitor — _deferred; revisit if 5+ issues filed_
 
 ### v0.2.0 — Engine refactor (engine owns SQLite + tools, web is dumb client)
 

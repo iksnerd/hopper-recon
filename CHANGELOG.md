@@ -46,10 +46,10 @@ All gates apply equally to direct MCP callers (Claude Code / Cline / stdio agent
 
 ### Build / CI
 
-- **GitHub Actions CI** (`.github/workflows/ci.yml`) — engine `gofmt -l`, `go vet`, `go build`, `go mod tidy` enforcement; web `tsc --noEmit`, `eslint`, Vitest.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`) — checks-only, no artifacts. Engine: `gofmt -l`, `go vet`, `go mod tidy --diff`. Web: `tsc --noEmit`, `eslint`, Vitest.
 - **Smoke tests on `scan-parser.ts`** for the seven parsers (`parseHttp` / `parseDns` / `parseTls` / `parseSubdomains` / `parseCdn` / `parseUrls`).
-- **Multi-arch GHCR release** (`.github/workflows/release.yml`) — `linux/amd64` + `linux/arm64`, semver-flavored tags, cosign keyless signing, syft SPDX SBOM attestations.
-- **Single-source `Version`** in the engine — overridable via `-ldflags "-X main.Version=…"` so tagged builds stamp themselves.
+- **Single-source `Version`** in the engine — overridable via `-ldflags "-X main.Version=…"` so future builds can stamp themselves.
+- Operators build their own images locally with `docker compose up -d --build`. We do not publish to GHCR — bring back `release.yml` from git history if you ever want to.
 
 ### Documentation
 

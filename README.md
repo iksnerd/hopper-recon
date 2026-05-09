@@ -284,8 +284,8 @@ For Cloudflare (D1 + Workers): the web's `D1Adapter` in `lib/db.ts` is the produ
 
 See [TODO.md](./TODO.md). Highlights:
 
-- **v0.1.0 OSS release** — license + docs + multi-arch GHCR images + CI workflow
-- **v0.1.0 abuse mitigations** — hardcoded `*.gov`/`*.mil` blocklist, per-target cooldown, audit log, optional `ALLOWED_DOMAINS` scope, first-boot warning banner
+- **v0.1.0 OSS release** — license + docs + CI checks workflow (image publishing intentionally deferred — operators build locally)
+- **v0.1.0 abuse mitigations** — `*.gov`/`*.mil` blocklist, per-target cooldown, audit log, optional `HOPPER_ALLOWED_DOMAINS` scope, first-boot warning banner
 - **v0.3.0 self-hosted auth** — Auth.js (OIDC + email magic-link), `/admin` route, audit-log viewer
 
 ---
