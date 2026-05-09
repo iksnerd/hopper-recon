@@ -103,7 +103,7 @@ The dashboard's `/api/scan` validates input then forwards to `engine POST /scan`
 
 ## Quick start
 
-**Prerequisites**: Docker + Docker Compose. (For development without containers: Node.js 22+, Go 1.26+.)
+**Prerequisites:** Docker + Docker Compose. (For development without containers: Node.js 22+, Go 1.26+.)
 
 ```bash
 git clone https://github.com/iksnerd/hopper-recon

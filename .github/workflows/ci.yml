@@ -36,9 +36,6 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go build
-        run: go build ./...
-
       - name: go mod tidy (fail on diff)
         run: |
           go mod tidy
