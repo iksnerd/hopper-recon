@@ -92,84 +92,48 @@ func (c MCPCtx) gate(tool, target string) (string, bool) {
 // its input is IPs, not a hostname, so scope doesn't apply and there's no
 // outbound traffic to rate-limit.
 
-func gatedSubfinder(c MCPCtx) func(context.Context, *mcp.CallToolRequest, subfinderInput) (*mcp.CallToolResult, subfinderOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in subfinderInput) (*mcp.CallToolResult, subfinderOutput, error) {
-		if reason, ok := c.gate("passive_subdomains", in.Domain); !ok {
-			return nil, subfinderOutput{Error: reason}, nil
+// gated wraps a tool runner in the shared MCPCtx.gate(). Generic over the
+// MCP input type (which the target extractor pulls a hostname from), the
+// runner's raw return type, and the MCP output type (built either by
+// `success` from the raw return or by `fail` from a reason string).
+//
+// One helper covers all six gated tools — adding the seventh means picking
+// gated() (custom in/out) or gatedTargetLines() (the targetInput→linesOutput
+// shape four of the current tools share). No more per-tool factory funcs.
+func gated[In, Raw, Out any](
+	c MCPCtx,
+	tool string,
+	target func(In) string,
+	run func(context.Context, In) (Raw, error),
+	success func(Raw) Out,
+	fail func(string) Out,
+) func(context.Context, *mcp.CallToolRequest, In) (*mcp.CallToolResult, Out, error) {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+		if reason, ok := c.gate(tool, target(in)); !ok {
+			return nil, fail(reason), nil
 		}
-		findings, err := RunSubfinder(ctx, in.Domain)
+		raw, err := run(ctx, in)
 		if err != nil {
-			return nil, subfinderOutput{Error: err.Error()}, nil
+			return nil, fail(err.Error()), nil
 		}
-		return nil, subfinderOutput{Findings: findings}, nil
+		return nil, success(raw), nil
 	}
 }
 
-func gatedDnsx(c MCPCtx) func(context.Context, *mcp.CallToolRequest, targetInput) (*mcp.CallToolResult, linesOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
-		if reason, ok := c.gate("resolve_dns", in.Target); !ok {
-			return nil, linesOutput{Error: reason}, nil
-		}
-		res, err := RunDnsx(ctx, in.Target)
-		if err != nil {
-			return nil, linesOutput{Error: err.Error()}, nil
-		}
-		return nil, linesOutput{Results: res}, nil
-	}
+// gatedTargetLines specialises gated() for the (targetInput → []string →
+// linesOutput) shape that dnsx, tlsx, httpx, and cdncheck all share.
+// Reduces each registration to a one-liner.
+func gatedTargetLines(c MCPCtx, tool string, run func(context.Context, string) ([]string, error)) func(context.Context, *mcp.CallToolRequest, targetInput) (*mcp.CallToolResult, linesOutput, error) {
+	return gated(c, tool,
+		func(in targetInput) string { return in.Target },
+		func(ctx context.Context, in targetInput) ([]string, error) { return run(ctx, in.Target) },
+		func(r []string) linesOutput { return linesOutput{Results: r} },
+		func(e string) linesOutput { return linesOutput{Error: e} })
 }
 
-func gatedTlsx(c MCPCtx) func(context.Context, *mcp.CallToolRequest, targetInput) (*mcp.CallToolResult, linesOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
-		if reason, ok := c.gate("fetch_tls_cert", in.Target); !ok {
-			return nil, linesOutput{Error: reason}, nil
-		}
-		res, err := RunTlsx(ctx, in.Target)
-		if err != nil {
-			return nil, linesOutput{Error: err.Error()}, nil
-		}
-		return nil, linesOutput{Results: res}, nil
-	}
-}
-
-func gatedHttpx(c MCPCtx) func(context.Context, *mcp.CallToolRequest, targetInput) (*mcp.CallToolResult, linesOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
-		if reason, ok := c.gate("probe_http", in.Target); !ok {
-			return nil, linesOutput{Error: reason}, nil
-		}
-		res, err := RunHttpx(ctx, in.Target)
-		if err != nil {
-			return nil, linesOutput{Error: err.Error()}, nil
-		}
-		return nil, linesOutput{Results: res}, nil
-	}
-}
-
-func gatedCdncheck(c MCPCtx) func(context.Context, *mcp.CallToolRequest, targetInput) (*mcp.CallToolResult, linesOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in targetInput) (*mcp.CallToolResult, linesOutput, error) {
-		if reason, ok := c.gate("check_cdn", in.Target); !ok {
-			return nil, linesOutput{Error: reason}, nil
-		}
-		res, err := RunCdncheck(ctx, in.Target)
-		if err != nil {
-			return nil, linesOutput{Error: err.Error()}, nil
-		}
-		return nil, linesOutput{Results: res}, nil
-	}
-}
-
-func gatedUrlfinder(c MCPCtx) func(context.Context, *mcp.CallToolRequest, urlfinderInput) (*mcp.CallToolResult, linesOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in urlfinderInput) (*mcp.CallToolResult, linesOutput, error) {
-		if reason, ok := c.gate("find_urls", in.Domain); !ok {
-			return nil, linesOutput{Error: reason}, nil
-		}
-		res, err := RunUrlfinder(ctx, in.Domain)
-		if err != nil {
-			return nil, linesOutput{Error: err.Error()}, nil
-		}
-		return nil, linesOutput{Results: res}, nil
-	}
-}
-
+// handleLookupGeoip is intentionally ungated — input is IPs, not a hostname,
+// so scope/blocklist don't apply and there's no outbound network call to
+// rate-limit (mmdb lookup is fully offline).
 func handleLookupGeoip(_ context.Context, _ *mcp.CallToolRequest, in geoipInput) (*mcp.CallToolResult, geoipOutput, error) {
 	ips := strings.Split(in.Ips, ",")
 	res, err := LookupGeoip(ips)
@@ -193,27 +157,43 @@ func buildMCPServer(ctx MCPCtx) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "passive_subdomains",
 		Description: "Perform strictly passive reconnaissance to find subdomains using OSINT (subfinder).",
-	}, gatedSubfinder(ctx))
+	}, gated(ctx, "passive_subdomains",
+		func(in subfinderInput) string { return in.Domain },
+		func(c context.Context, in subfinderInput) ([]SubfinderEntry, error) {
+			return RunSubfinder(c, in.Domain)
+		},
+		func(r []SubfinderEntry) subfinderOutput { return subfinderOutput{Findings: r} },
+		func(e string) subfinderOutput { return subfinderOutput{Error: e} }))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "resolve_dns",
 		Description: "Safely resolve a domain to verify if it is live using standard DNS queries (dnsx).",
-	}, gatedDnsx(ctx))
+	}, gatedTargetLines(ctx, "resolve_dns", RunDnsx))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "fetch_tls_cert",
 		Description: "Safely connect to a server to grab its public SSL/TLS certificate, CN, and SANs without sending payloads (tlsx). Refuses *.gov / *.mil and equivalent restricted suffixes by default.",
-	}, gatedTlsx(ctx))
+	}, gatedTargetLines(ctx, "fetch_tls_cert", RunTlsx))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "probe_http",
 		Description: "Probe a target domain to detect HTTP servers, extract titles, and technology stack. Identifies itself with a hopper-recon User-Agent. Rate-limited to 50 req/s (httpx). Refuses *.gov / *.mil and equivalent restricted suffixes by default.",
-	}, gatedHttpx(ctx))
+	}, gatedTargetLines(ctx, "probe_http", RunHttpx))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_cdn",
 		Description: "Attribute the IPs behind a domain to their CDN, cloud, or WAF provider using bundled CIDR lists (cdncheck). Pure offline lookup — no requests reach the target.",
-	}, gatedCdncheck(ctx))
+	}, gatedTargetLines(ctx, "check_cdn", RunCdncheck))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "find_urls",
 		Description: "Gather historical URLs for a domain from passive sources (waybackarchive, commoncrawl, alienvault). No requests to the target (urlfinder).",
-	}, gatedUrlfinder(ctx))
+	}, gated(ctx, "find_urls",
+		func(in urlfinderInput) string { return in.Domain },
+		func(c context.Context, in urlfinderInput) ([]string, error) { return RunUrlfinder(c, in.Domain) },
+		func(r []string) linesOutput { return linesOutput{Results: r} },
+		func(e string) linesOutput { return linesOutput{Error: e} }))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "lookup_geoip",
 		Description: "Resolve IP addresses to ISO 3166-1 alpha-2 country codes using a bundled MaxMind GeoLite2-Country database. Pure offline, no external network calls.",
