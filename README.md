@@ -14,8 +14,6 @@ Self-hosted, MCP-native security reconnaissance dashboard. A **Go engine** wraps
 >
 > The maintainers do not consent to use of this software against unauthorized third-party infrastructure. See [SECURITY.md](./SECURITY.md) for the full posture and disclosure contact.
 
-![Dashboard with operator advisory banner](./docs/screenshots/02-dashboard-with-banner.png)
-
 ---
 
 ## Features
@@ -53,12 +51,29 @@ The `/config` endpoint on the engine reports scope/auth state as booleans (no en
 
 ## Screenshots
 
-| | |
-|---|---|
-| **Landing** — `/` shows what the tool does, with a static example. | **History** — `/history` lists every scanned domain with cert/HTTP/tech metadata, geo distribution, scan-recency. |
-| ![Landing page](./docs/screenshots/01-landing.png) | ![History list](./docs/screenshots/03-history.png) |
-| **Dashboard** — `/dashboard` runs all OSINT tools in parallel against a target. Recent targets idle state appears when no scan is active. The advisory banner appears when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured. | **Domain detail** — `/history/<domain>` shows the full picture: findings strip, geo globe, subdomain breakdown with category histogram, full HTTP/DNS/TLS panels, scan timeline. |
-| ![Dashboard with banner](./docs/screenshots/02-dashboard-with-banner.png) | ![Domain detail page for iana.org](./docs/screenshots/05-history-detail-iana.png) |
+### Dashboard — `/dashboard`
+
+Runs all OSINT tools in parallel against a target. The recent-targets idle state appears when no scan is active. The advisory banner shows when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured (one of the v0.1 abuse mitigations).
+
+![Dashboard with operator advisory banner](./docs/screenshots/02-dashboard-with-banner.png)
+
+### History — `/history`
+
+Every scanned domain with cert / HTTP / tech metadata, geo distribution, scan recency. Inline `>_ RESCAN` and delete actions. Click into a row for the detail view.
+
+![History list](./docs/screenshots/03-history.png)
+
+### Domain detail — `/history/<domain>`
+
+The full picture for one domain: findings strip (auto-triaged security signals — expired certs, missing SPF/DMARC, sensitive subdomains), geo globe, subdomain breakdown with category histogram, full HTTP / DNS / TLS panels with redirect chain and SAN expansion, scan-history timeline at the bottom.
+
+![Domain detail page for iana.org](./docs/screenshots/05-history-detail-iana.png)
+
+### Landing — `/`
+
+What the tool does, with a static `probe_http(anthropic.com)` example baked in. No live recon runs on page load.
+
+![Landing page](./docs/screenshots/01-landing.png)
 
 ---
 
