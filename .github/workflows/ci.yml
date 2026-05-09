@@ -62,8 +62,13 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: npm ci
-        run: npm ci --no-audit --no-fund
+      - name: npm install
+        # `npm install` (not `npm ci`): vitest pulls in platform-specific
+        # optional deps (esbuild, oxc, @emnapi/runtime) that npm only
+        # records in the lock for the host that ran `npm install`. Strict
+        # `npm ci` rejects the linux runner when the lock was generated on
+        # macOS — same fix lives in web/Dockerfile.
+        run: npm install --no-audit --no-fund
 
       - name: tsc --noEmit
         run: npx tsc --noEmit
