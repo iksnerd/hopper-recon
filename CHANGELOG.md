@@ -6,6 +6,22 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`parseDns` CDN field** — `dnsx` JSON returns `cdn: bool` + `cdn-name: string`. The parser was reading the boolean flag as the display value, so every CDN-backed domain showed `"true"` instead of the provider name (`"cloudflare"`, `"google"`, etc.). Fixed to read `first["cdn-name"]`.
+- **`probe_http` missing CPE data** — `httpx` requires an explicit `-cpe` flag to populate the `cpe` array in JSON output. The flag was absent, so CPE identifiers were never returned. Added `-cpe` to `RunHttpx`.
+
+### Added
+
+- **`probe_http` surfaces CDN/WAF and IPv6 from httpx** — `HttpResult` now includes `cdn_name` (e.g. `"cloudflare"`), `cdn_type` (`"cdn"` / `"waf"` / `"cloud"`), `aaaa` (IPv6 addresses), and `scheme`. Dashboard and history detail HTTP panels render the CDN row when present and show IPv4 + IPv6 in a combined IPS section.
+- **`InfoTooltip` component** (`components/recon/info-tooltip.tsx`) — small Lucide `Info` icon that shows a Radix tooltip on hover. `TooltipProvider` added to `app/(app)/layout.tsx`.
+- **Tooltips wired on technical fields** — `DataRow` (dashboard) and `MiniTable` (history detail) accept an optional `info` prop. Tooltips cover: JARM, CPE, CNAME, ASN, CDN in the HTTP panel; TTL, CDN, ASN in the DNS panel.
+
+### Removed
+
+- `spec.md` — stale v0.1 Cloudflare D1 / NextAuth.js planning artifact. Architecture no longer matches.
+- `GEMINI.md` removed from git tracking (added to `.gitignore`); kept as a local dev file updated to reflect v0.2 architecture.
+
 ## [0.1.0] — TBD
 
 First public OSS release. Single-tenant, self-hosted, MCP-native.

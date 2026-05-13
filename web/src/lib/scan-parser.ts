@@ -16,7 +16,7 @@ export interface DnsResult {
   ns: string[]
   mx: string[]
   txt: string[]
-  cdn: string
+  cdn: string       // CDN provider name from dnsx (e.g. "cloudflare"), empty if none
   asn: string
   status_code: string
   ttl: number
@@ -48,6 +48,7 @@ export interface TlsResult {
 export interface HttpResult {
   url: string
   final_url: string
+  scheme: string
   title: string
   webserver: string
   status_code: number
@@ -61,6 +62,9 @@ export interface HttpResult {
   asn: string
   cname: string
   a: string[]
+  aaaa: string[]
+  cdn_name: string    // CDN/WAF provider from httpx (e.g. "cloudflare")
+  cdn_type: string    // "cdn" | "waf" | "cloud" from httpx
 }
 
 export type CdnKind = "cdn" | "cloud" | "waf"
@@ -157,10 +161,11 @@ export function parseSubdomains(apiResult: unknown): SubdomainResult {
 
 export function parseDns(apiResult: unknown): DnsResult | null {
   // Engine /scan returns `results: [parsedDnsRecord]` — already JSON-decoded.
+  // dnsx JSON: `cdn` is a boolean, `cdn-name` is the provider string.
   const raw = apiResult as {
     results: Array<{
       host: string; a?: string[]; aaaa?: string[]; ns?: string[]; mx?: string[]; txt?: string[]
-      cdn?: string; asn?: string; status_code: string; ttl: number; resolver: string[]
+      cdn?: boolean; "cdn-name"?: string; asn?: string; status_code: string; ttl: number; resolver: string[]
     }>
   }
   const first = raw?.results?.[0]
@@ -189,7 +194,7 @@ export function parseDns(apiResult: unknown): DnsResult | null {
     ns: first.ns ?? [],
     mx: first.mx ?? [],
     txt,
-    cdn: first.cdn ?? "",
+    cdn: first["cdn-name"] ?? "",
     asn: first.asn ?? "",
     status_code: first.status_code,
     ttl: first.ttl,
@@ -237,10 +242,11 @@ export function parseTls(apiResult: unknown): TlsResult | null {
 export function parseHttp(apiResult: unknown): HttpResult | null {
   const raw = apiResult as {
     results: Array<{
-      url: string; final_url?: string; title?: string; webserver?: string
+      url: string; final_url?: string; scheme?: string; title?: string; webserver?: string
       status_code: number; chain_status_codes?: number[]; content_type?: string
       tech?: string[]; cpe?: Array<{ cpe: string }>; time?: string
-      content_length?: number; jarm_hash?: string; asn?: string; cname?: string; a?: string[]
+      content_length?: number; jarm_hash?: string; asn?: string; cname?: string
+      a?: string[]; aaaa?: string[]; cdn_name?: string; cdn_type?: string
     }>
   }
   const h = raw?.results?.[0]
@@ -249,6 +255,7 @@ export function parseHttp(apiResult: unknown): HttpResult | null {
   return {
     url: h.url,
     final_url: h.final_url ?? h.url,
+    scheme: h.scheme ?? "",
     title: h.title ?? "",
     webserver: h.webserver ?? "",
     status_code: h.status_code,
@@ -262,6 +269,9 @@ export function parseHttp(apiResult: unknown): HttpResult | null {
     asn: h.asn ?? "",
     cname: h.cname ?? "",
     a: h.a ?? [],
+    aaaa: h.aaaa ?? [],
+    cdn_name: h.cdn_name ?? "",
+    cdn_type: h.cdn_type ?? "",
   }
 }
 

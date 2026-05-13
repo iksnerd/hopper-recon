@@ -18,6 +18,28 @@ _(none)_
 
 ---
 
+## Done — OSS readiness + data completeness (2026-05-13)
+
+### OSS readiness review
+- [x] **Personal info audit** — no real emails, no secrets, no credentials in any tracked file. `iksnerd@users.noreply.github.com` is GitHub's privacy noreply throughout. `docs/personal/` was already gitignored.
+- [x] **`spec.md` deleted** — stale v0.1 Cloudflare D1 / NextAuth.js planning artifact; did not reflect current architecture.
+- [x] **`GEMINI.md` gitignored + rewritten** — was describing v0.1 Cloudflare Pages/Sandboxes/D1 architecture with 4 tools and "frontend TODO". Now gitignored (consistent with `.gemini/`), local copy updated to v0.2 arch with all 7 tools.
+
+### Bug fixes
+- [x] **`parseDns` CDN field** — `dnsx` JSON emits `cdn: bool` + `cdn-name: string`. Parser was reading the boolean as the display value (every CDN domain showed `"true"`). Fixed to read `first["cdn-name"]`.
+- [x] **`probe_http` CPE** — `httpx` needs explicit `-cpe` flag to populate CPE in JSON. Flag was missing; CPE identifiers were never returned. Added `-cpe` to `RunHttpx` in `engine/tools.go`.
+
+### Data completeness
+- [x] **`HttpResult` extended** — added `cdn_name`, `cdn_type`, `aaaa`, `scheme` fields from httpx JSON output.
+- [x] **Dashboard HTTP panel** — CDN row (`cloudflare · waf`) and combined IPv4+IPv6 IPS section.
+- [x] **History detail HTTP panel** — same CDN row and IPS section with both address families.
+
+### Tooltips
+- [x] **`InfoTooltip` component** (`components/recon/info-tooltip.tsx`) — Lucide `Info` icon + Radix `Tooltip`. `TooltipProvider` added to app layout.
+- [x] **Tooltips on technical fields** — `DataRow` (dashboard) and `MiniTable` (history detail) extended with optional `info` prop. Covers: JARM, CPE, CNAME, ASN, CDN (HTTP panel); TTL, CDN, ASN (DNS panel).
+
+---
+
 ## Done — engine test suite (2026-05-09)
 
 - [x] **`engine/policy_test.go`** — 18 tests covering `Policy.Check` (14 table cases: blocklist, override, passive vs active tools, scope, trailing-dot normalisation), `inScope`, `HasScope`, `LoadPolicy` env parsing + edge cases

@@ -1,9 +1,11 @@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppSidebar } from "@/components/app-sidebar"
 import { OperatorWarningBanner } from "@/components/recon/operator-warning-banner"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
+    <TooltipProvider delayDuration={200}>
     <SidebarProvider>
       <AppSidebar />
       {/* min-w-0 lets the main column shrink below intrinsic content width
@@ -15,5 +17,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </SidebarInset>
     </SidebarProvider>
+    </TooltipProvider>
   )
 }

@@ -33,6 +33,7 @@ import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { CopyableText } from "@/components/ui/copyable-text"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
+import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { Badge } from "@/components/ui/badge"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 
@@ -581,11 +582,24 @@ function DashboardInner() {
                           <DataRow label="TITLE" value={scan.http.title || "—"} />
                           <DataRow label="CONTENT LENGTH" value={`${scan.http.content_length} bytes`} />
                           <DataRow label="CONTENT TYPE" value={scan.http.content_type || "—"} />
-                          {scan.http.cname && <DataRow label="CNAME" value={scan.http.cname} mono />}
-                          {scan.http.asn && <DataRow label="ASN" value={scan.http.asn} mono />}
+                          {scan.http.cname && <DataRow label="CNAME" value={scan.http.cname} mono info="Canonical Name — the domain this host ultimately resolves to (e.g. points to a CDN or load balancer)." />}
+                          {scan.http.asn && <DataRow label="ASN" value={scan.http.asn} mono info="Autonomous System Number — identifies the network operator (ISP, CDN, or cloud provider) controlling this IP block." />}
+                          {scan.http.cdn_name && (
+                            <DataRow
+                              label="CDN"
+                              value={scan.http.cdn_type ? `${scan.http.cdn_name} · ${scan.http.cdn_type}` : scan.http.cdn_name}
+                              mono
+                              info="CDN/WAF provider detected by httpx from HTTP response headers and routing. 'waf' means traffic passes through a Web Application Firewall."
+                            />
+                          )}
                           {scan.http.jarm_hash && (
                             <TableRow className="border-b border-card-hover hover:bg-transparent">
-                              <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">JARM</TableCell>
+                              <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">
+                                <span className="inline-flex items-center gap-0.5">
+                                  JARM
+                                  <InfoTooltip text="62-character TLS fingerprint that identifies the server's TLS stack. Useful for detecting infrastructure changes, CDN bypass, or correlating servers across IPs." />
+                                </span>
+                              </TableCell>
                               <TableCell className="p-0 py-1.5 text-right">
                                 <div className="flex items-center gap-2 justify-end">
                                   <span className="font-mono text-data text-muted-foreground-2 truncate max-w-[140px] sm:max-w-[280px]">{scan.http.jarm_hash}</span>
@@ -606,17 +620,23 @@ function DashboardInner() {
                       </div>
                       {scan.http.cpe.length > 0 && (
                         <div className="border-t border-border pt-3 mt-3">
-                          <div className="text-micro text-muted-foreground mb-2">CPE [{scan.http.cpe.length}]</div>
+                          <div className="text-micro text-muted-foreground mb-2 inline-flex items-center gap-0.5">
+                            CPE [{scan.http.cpe.length}]
+                            <InfoTooltip text="Common Platform Enumeration — structured identifiers for software and hardware. Use these to look up known CVEs in the NVD or other vulnerability databases." />
+                          </div>
                           <div className="flex flex-wrap gap-1">
                             {scan.http.cpe.map((c) => <DataChip key={c} className="text-data">{c}</DataChip>)}
                           </div>
                         </div>
                       )}
-                      {scan.http.a.length > 0 && (
+                      {(scan.http.a.length > 0 || scan.http.aaaa.length > 0) && (
                         <div className="border-t border-border pt-3 mt-3">
-                          <div className="text-micro text-muted-foreground mb-2">IPS [{scan.http.a.length}]</div>
+                          <div className="text-micro text-muted-foreground mb-2">
+                            IPS [{scan.http.a.length + scan.http.aaaa.length}]
+                          </div>
                           <div className="flex flex-wrap gap-1">
                             {scan.http.a.map((ip) => <DataChip key={ip}>{ip}</DataChip>)}
+                            {scan.http.aaaa.map((ip) => <DataChip key={ip} className="text-muted-foreground-2">{ip}</DataChip>)}
                           </div>
                         </div>
                       )}
@@ -797,10 +817,15 @@ function CertValidityBar({ tls }: { tls: NonNullable<ScanState["tls"]> }) {
   )
 }
 
-function DataRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function DataRow({ label, value, mono, info }: { label: string; value: React.ReactNode; mono?: boolean; info?: string }) {
   return (
     <TableRow className="border-b border-card-hover hover:bg-transparent">
-      <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">{label}</TableCell>
+      <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">
+        <span className="inline-flex items-center gap-0.5">
+          {label}
+          {info && <InfoTooltip text={info} />}
+        </span>
+      </TableCell>
       <TableCell className={`p-0 py-1.5 text-right text-foreground whitespace-normal break-all ${mono ? "font-mono" : ""}`}>{value}</TableCell>
     </TableRow>
   )

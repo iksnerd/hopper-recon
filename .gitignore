@@ -48,6 +48,9 @@ Thumbs.db
 .screenshots/
 skills-lock.json
 
+# AI agent guides (dev-local, not part of the public API surface)
+GEMINI.md
+
 # Docker
 .dockerignore
 

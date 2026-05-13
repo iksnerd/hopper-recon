@@ -27,6 +27,7 @@ import { DataChip } from "@/components/recon/data-chip"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
+import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { GeoGlobe } from "@/components/recon/geo-globe"
 
 // Build a DomainSummary from raw rows (DESC order — first seen per tool = most recent)
@@ -301,9 +302,10 @@ export default function DomainDetailPage() {
                     { label: "TIME",   value: http.time },
                     { label: "TITLE",  value: http.title || "—" },
                     { label: "TYPE",   value: http.content_type },
-                    ...(http.cname     ? [{ label: "CNAME", value: http.cname }]     : []),
-                    ...(http.asn       ? [{ label: "ASN",   value: http.asn }]       : []),
-                    ...(http.jarm_hash ? [{ label: "JARM",  value: http.jarm_hash }] : []),
+                    ...(http.cname    ? [{ label: "CNAME", value: http.cname, info: "Canonical Name — the domain this host ultimately resolves to (e.g. points to a CDN or load balancer)." }] : []),
+                    ...(http.asn      ? [{ label: "ASN",   value: http.asn,   info: "Autonomous System Number — identifies the network operator (ISP, CDN, or cloud provider) controlling this IP block." }] : []),
+                    ...(http.cdn_name ? [{ label: "CDN",   value: http.cdn_type ? `${http.cdn_name} · ${http.cdn_type}` : http.cdn_name, info: "CDN/WAF provider detected by httpx from HTTP response headers and routing. 'waf' means traffic passes through a Web Application Firewall." }] : []),
+                    ...(http.jarm_hash ? [{ label: "JARM",  value: http.jarm_hash, info: "62-character TLS fingerprint that identifies the server's TLS stack. Useful for detecting infrastructure changes, CDN bypass, or correlating servers across IPs." }] : []),
                   ]} />
                   {http.tech.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-border">
@@ -317,11 +319,25 @@ export default function DomainDetailPage() {
                   )}
                   {http.cpe.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border">
-                      <div className="text-micro text-muted-foreground mb-2">CPE [{http.cpe.length}]</div>
+                      <div className="text-micro text-muted-foreground mb-2 inline-flex items-center gap-0.5">
+                        CPE [{http.cpe.length}]
+                        <InfoTooltip text="Common Platform Enumeration — structured identifiers for software and hardware. Use these to look up known CVEs in the NVD or other vulnerability databases." />
+                      </div>
                       <div className="flex flex-wrap gap-1">
                         {http.cpe.map((c) => (
                           <DataChip key={c} className="px-1.5 text-data">{c}</DataChip>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                  {(http.a.length > 0 || http.aaaa.length > 0) && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <div className="text-micro text-muted-foreground mb-2">
+                        IPS [{http.a.length + http.aaaa.length}]
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {http.a.map((ip) => <DataChip key={ip} className="px-1.5">{ip}</DataChip>)}
+                        {http.aaaa.map((ip) => <DataChip key={ip} className="px-1.5 text-muted-foreground-2">{ip}</DataChip>)}
                       </div>
                     </div>
                   )}
@@ -352,9 +368,9 @@ export default function DomainDetailPage() {
                   )}
                   <MiniTable rows={[
                     { label: "STATUS", value: `[${dns.status_code}]` },
-                    { label: "TTL",    value: `${dns.ttl}s` },
-                    ...(dns.cdn ? [{ label: "CDN", value: dns.cdn }] : []),
-                    ...(dns.asn ? [{ label: "ASN", value: dns.asn }] : []),
+                    { label: "TTL",    value: `${dns.ttl}s`, info: "Time To Live — how long (in seconds) resolvers may cache this DNS record before re-querying." },
+                    ...(dns.cdn ? [{ label: "CDN", value: dns.cdn, info: "CDN provider identified from DNS response patterns by dnsx." }] : []),
+                    ...(dns.asn ? [{ label: "ASN", value: dns.asn, info: "Autonomous System Number — identifies the network operator controlling the resolved IP block." }] : []),
                   ]} />
                   {dns.a.length  > 0 && <RecordRow label="A"  items={dns.a} />}
                   {dns.ns.length > 0 && <RecordRow label="NS" items={dns.ns} />}
@@ -500,13 +516,18 @@ function CertBar({ tls }: { tls: TlsResult }) {
   )
 }
 
-function MiniTable({ rows }: { rows: { label: string; value: string }[] }) {
+function MiniTable({ rows }: { rows: { label: string; value: string; info?: string }[] }) {
   return (
     <Table className="text-data mt-2">
       <TableBody>
-        {rows.map(({ label, value }) => (
+        {rows.map(({ label, value, info }) => (
           <TableRow key={label} className="border-b border-card-hover hover:bg-transparent">
-            <TableCell className="p-0 py-1 pr-4 text-muted-foreground whitespace-nowrap align-top w-[80px]">{label}</TableCell>
+            <TableCell className="p-0 py-1 pr-4 text-muted-foreground whitespace-nowrap align-top w-[80px]">
+              <span className="inline-flex items-center gap-0.5">
+                {label}
+                {info && <InfoTooltip text={info} />}
+              </span>
+            </TableCell>
             <TableCell className="p-0 py-1 text-muted-foreground-2 whitespace-normal break-all">{value}</TableCell>
           </TableRow>
         ))}

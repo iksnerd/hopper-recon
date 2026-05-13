@@ -166,7 +166,7 @@ func RunHttpx(ctx context.Context, target string) ([]string, error) {
 	return execJSONL(ctx, "httpx",
 		[]string{
 			"-u", target, "-silent", "-json",
-			"-title", "-td", "-sc", "-fr", "-location", "-jarm",
+			"-title", "-td", "-cpe", "-sc", "-fr", "-location", "-jarm",
 			"-asn", "-cname", "-rt", "-rl", "50",
 			"-H", "User-Agent: " + userAgent(),
 		},
