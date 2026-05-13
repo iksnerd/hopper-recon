@@ -1,0 +1,8 @@
+# Gitleaks configuration for hopper-recon.
+# False positives confirmed and suppressed below.
+
+[allowlist]
+  description = "Confirmed false positives"
+  # engine/README.md:20 — "Shodan/Censys/FOFA keys" is a prose list of
+  # third-party service names, not a credential value. Entropy trigger only.
+  regexes = ['''Shodan/Censys/FOFA''']

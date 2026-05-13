@@ -6,23 +6,34 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-13
+
 ### Fixed
 
 - **`parseDns` CDN field** — `dnsx` JSON returns `cdn: bool` + `cdn-name: string`. The parser was reading the boolean flag as the display value, so every CDN-backed domain showed `"true"` instead of the provider name (`"cloudflare"`, `"google"`, etc.). Fixed to read `first["cdn-name"]`.
 - **`probe_http` missing CPE data** — `httpx` requires an explicit `-cpe` flag to populate the `cpe` array in JSON output. The flag was absent, so CPE identifiers were never returned. Added `-cpe` to `RunHttpx`.
+- **DKIM false-positive** — parser regex `/v=dkim1|dkim=/` was matching `adkim=r` from DMARC records, incorrectly marking DKIM as present. Fixed to `/v=dkim1/i`.
 
 ### Added
 
 - **`probe_http` surfaces CDN/WAF and IPv6 from httpx** — `HttpResult` now includes `cdn_name` (e.g. `"cloudflare"`), `cdn_type` (`"cdn"` / `"waf"` / `"cloud"`), `aaaa` (IPv6 addresses), and `scheme`. Dashboard and history detail HTTP panels render the CDN row when present and show IPv4 + IPv6 in a combined IPS section.
 - **`InfoTooltip` component** (`components/recon/info-tooltip.tsx`) — small Lucide `Info` icon that shows a Radix tooltip on hover. `TooltipProvider` added to `app/(app)/layout.tsx`.
 - **Tooltips wired on technical fields** — `DataRow` (dashboard) and `MiniTable` (history detail) accept an optional `info` prop. Tooltips cover: JARM, CPE, CNAME, ASN, CDN in the HTTP panel; TTL, CDN, ASN in the DNS panel.
+- **Engine test suite** — `go test ./...` added to CI engine job; engine job previously ran only `gofmt`/`go vet`/`go mod tidy`.
+- **`.gitleaks.toml`** — suppresses confirmed false-positive (`engine/README.md:20` Shodan/Censys/FOFA prose list).
+- **`CODEOWNERS`** — `.github/CODEOWNERS` designates `@iksnerd` as reviewer on all PRs.
 
 ### Removed
 
 - `spec.md` — stale v0.1 Cloudflare D1 / NextAuth.js planning artifact. Architecture no longer matches.
 - `GEMINI.md` removed from git tracking (added to `.gitignore`); kept as a local dev file updated to reflect v0.2 architecture.
 
-## [0.1.0] — TBD
+### Security
+
+- Go base image bumped from `1.26-alpine` to `1.26.3-alpine`; CI `go-version` pinned to `1.26.3`. Fixes two reachable stdlib CVEs: `GO-2026-4971` (panic in `net.Dial` on NUL byte) and `GO-2026-4918` (infinite loop in HTTP/2 transport).
+- Next.js bumped from `16.2.4` to `16.2.6`. Fixes high-severity DoS/XSS/SSRF chain in Server Components and middleware.
+
+## [0.1.0] — 2026-05-09
 
 First public OSS release. Single-tenant, self-hosted, MCP-native.
 
@@ -74,5 +85,6 @@ All gates apply equally to direct MCP callers (Claude Code / Cline / stdio agent
 - **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + GitHub issue / PR templates.
 - **`CLAUDE.md`** — agent guide for the codebase. The repo is consciously LLM-coding-friendly.
 
-[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/iksnerd/hopper-recon/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/iksnerd/hopper-recon/releases/tag/v0.1.0

@@ -184,7 +184,7 @@ export function parseDns(apiResult: unknown): DnsResult | null {
   const securityTxt = {
     spf:   /v=spf1/.test(txtJoined),
     dmarc: /v=dmarc1/.test(txtJoined),
-    dkim:  /v=dkim1|dkim=/.test(txtJoined),
+    dkim:  /v=dkim1/i.test(txtJoined),
   }
 
   return {

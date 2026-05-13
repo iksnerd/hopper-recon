@@ -2,6 +2,7 @@
 
 Self-hosted, MCP-native security reconnaissance dashboard. A **Go engine** wraps the [projectdiscovery](https://github.com/projectdiscovery) OSINT tooling and owns its own SQLite; a **Next.js 16 dashboard** is a thin HTTP client on top. AI agents (Claude Code / Cline / Claude Desktop) can attach to the same engine over MCP and use the recon tools directly.
 
+[![CI](https://github.com/iksnerd/hopper-recon/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/hopper-recon/actions/workflows/ci.yml)
 ![Terminal aesthetic — monospace, dark, no hue](https://img.shields.io/badge/UI-terminal--aesthetic-111?style=flat-square&labelColor=080808&color=444)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=next.js)
@@ -83,7 +84,7 @@ What the tool does, with a static `probe_http(anthropic.com)` example baked in. 
 hopper-recon/
 ├── engine/             # Go server — HTTP REST + stdio MCP, owns SQLite
 │   ├── main.go         # Entrypoint, MCP tool registration
-│   ├── tools.go        # Recon-binary runners (subfinder/dnsx/tlsx/httpx/geoip)
+│   ├── tools.go        # Recon-binary runners (subfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/geoip)
 │   ├── db.go           # SQLite + queries
 │   ├── server.go       # REST handlers + /mcp mount
 │   └── Dockerfile

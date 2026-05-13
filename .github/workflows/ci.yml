@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   engine:
-    name: engine — gofmt / vet / build
+    name: engine — gofmt / vet / test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,7 +21,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version: '1.26.3'
           cache-dependency-path: engine/go.sum
 
       - name: gofmt (fail on diff)
@@ -43,6 +43,9 @@ jobs:
             echo "::error::go mod tidy produced changes — commit them"
             exit 1
           fi
+
+      - name: go test
+        run: go test ./...
 
   web:
     name: web — tsc / lint
