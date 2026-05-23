@@ -68,7 +68,7 @@ Every scanned domain with cert / HTTP / tech metadata, geo distribution, scan re
 
 The full picture for one domain: findings strip (auto-triaged security signals — expired certs, missing SPF/DMARC, sensitive subdomains), geo globe, subdomain breakdown with category histogram, full HTTP / DNS / TLS panels with redirect chain and SAN expansion, scan-history timeline at the bottom.
 
-![Domain detail page for iana.org](./docs/screenshots/05-history-detail-iana.png)
+![Domain detail page for iana.org](./docs/screenshots/04-history-detail-iana.png)
 
 ### Landing — `/`
 

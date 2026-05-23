@@ -2,7 +2,7 @@
 
 Self-hosted hopper-recon runs as two containers (engine + web) plus two Litestream sidecars. The reference stack is `docker compose` on a single VM, but the primitives translate cleanly to any container runtime.
 
-> **Auth posture:** hopper-recon v0.2 ships with **no built-in authentication**. Put it behind a VPN, Tailscale, Cloudflare Access, or `oauth2-proxy` before exposing it to any network you don't control. v0.3 adds Auth.js (OIDC + email magic-link).
+> **Auth posture:** hopper-recon ships with **no built-in authentication**. Put it behind a VPN, Tailscale, Cloudflare Access, or `oauth2-proxy` before exposing it to any network you don't control. Auth is on the roadmap; the operator advisory banner in the UI will remind you when neither scope nor auth is configured.
 
 ---
 
