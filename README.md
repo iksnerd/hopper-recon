@@ -112,6 +112,7 @@ The dashboard's `/api/scan` validates input then forwards to `engine POST /scan`
 | `check_cdn` | cdncheck | Per-IP CDN / cloud / WAF attribution from bundled CIDR lists (Cloudflare, Akamai, Fastly, AWS, GCP, Imperva, …). Pure offline. |
 | `find_urls` | urlfinder | Historical URLs from passive sources (waybackarchive, commoncrawl, alienvault). No requests to the target. |
 | `lookup_geoip` | geoip2-golang | IPs → ISO country codes from a local MaxMind GeoLite2 mmdb. Anycast IPs (Cloudflare / AWS / Google) have no country attribution by design — the dashboard shows an inline note instead of an empty globe. |
+| `expand_subdomains` | alterx | Permutation-based subdomain wordlist generation from existing subdomains. Pure local transform — no network requests. |
 
 **Tools we don't ship**: `asnmap` (requires PDCP API key), `search_hosts` / uncover (requires Shodan/Censys/FOFA keys). Hopper's policy is that every shipped tool must produce useful output for a first-time user without auth setup.
 

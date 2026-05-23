@@ -81,6 +81,14 @@ correctness. Screenshots help reviewers a lot.
 We don't currently require a CLA. We may add one before v1.0; if so, past
 contributors will be contacted before any relicense.
 
+## Third-party license notes
+
+The web build pulls in `sharp` transitively via `@opennextjs/cloudflare`.
+`sharp` and its native binaries (`@img/sharp-*`) are licensed LGPL-3.0-or-later.
+They are build-time dependencies and are not bundled into the distributed
+application, so they do not affect the MIT license of this project. If you
+vendor or statically link them, ensure your use complies with LGPL-3.
+
 ## Adding a recon tool
 
 See the eight-step checklist in [`CLAUDE.md`](./CLAUDE.md) under "Adding a
