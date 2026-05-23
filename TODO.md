@@ -3,18 +3,43 @@
 ## Critical path — self-hosted on k8s
 The shortest road to "a company can deploy this on their Kubernetes cluster, free":
 
-1. **v0.1.0 OSS release** — license + docs + CI checks workflow ✓ (image publishing intentionally deferred — operators build locally; bring back `release.yml` from git history if needed)
-2. **v0.1.0 K8s package** — Helm chart + Kustomize + pod-security defaults — _deferred; lean compose-first shape ships first_
-3. **v0.3.0 Self-hosted auth** — Auth.js + audit log + scope config (weeks 3–4) — required for >5 users; smaller teams can run with `AUTH_MODE=none` behind a VPN
+1. **v0.1.0 OSS release** — license + docs + CI checks workflow ✓
+2. **v0.2.0 engine refactor** ✓ — engine owns SQLite + recon tools, web is thin HTTP client
+3. **v0.3.0 alterx** ✓ — expand_subdomains tool + OSS polish (repo public, CI, screenshots, releases)
+4. **v0.4.0 Cobra CLI** — `hopper-recon scan <tool> <target>`, `history`, `version` subcommands
+5. **v0.5.0 Self-hosted auth** — Auth.js OIDC + email magic-link, `AUTH_MODE` env switch
 
-**v0.2.0 engine refactor shipped** — engine owns SQLite + recon tools, web is a thin HTTP client, MCP at `/mcp` for AI agents.
-
-Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny cluster (Hetzner CX11 or Oracle Free Tier ARM) $0–5/mo. Real operational cost is upstream API quotas (Shodan/Censys), which is the customer's bill with those vendors.
+Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny cluster (Hetzner CX11 or Oracle Free Tier ARM) $0–5/mo.
 
 ---
 
 ## In Progress
 _(none)_
+
+---
+
+## Done — v0.3.1 OSS polish + public launch (2026-05-23)
+
+- [x] **Repo made public** — `iksnerd/hopper-recon` is now public on GitHub
+- [x] **GitHub Releases** — v0.3.0 and v0.3.1 release entries created with changelogs; latest tag resolves correctly
+- [x] **Landing page shows all 8 tools** — CAPABILITIES grid updated to 8 entries (CDN, URLS, MUTATIONS, GEO added); footer credits extended to include `cdncheck · urlfinder · alterx`
+- [x] **Version strings dynamic** — landing page and sidebar both read `pkg.version` from `package.json` instead of hardcoded `v0.1.0-alpha`
+- [x] **`web/package.json` bumped to `0.3.0`** — in sync with engine `Version` and git tag
+- [x] **Next.js metadata expanded** — `metadataBase`, `og:url`, `og:siteName`, Twitter card (`summary_large_image`), description covers all 7 tools, keywords expanded
+- [x] **`next build` step added to CI** — web job now runs `tsc → lint → vitest → next build`; catches broken imports and bad metadata that type-check alone misses
+- [x] **4 npm vulnerabilities resolved** (`ws` / `wrangler` chain) via `npm audit fix`; 2 remaining are `postcss` bundled inside `next@16` — no non-breaking fix upstream
+- [x] **CONTRIBUTING.md** — third-party license note for LGPL-3 `sharp` transitive dependency
+- [x] **Screenshots refreshed** — all 4 PNGs retaken against running v0.3.0 stack; numbered 01–04 (history-detail was 05, renamed to 04)
+- [x] **README quick start** — added `docker compose ps` health check and `open http://localhost:9120`; roadmap replaced with clean v0.1→v0.3 changelog; architecture file tree corrected
+- [x] **DEPLOY.md auth note** — removed stale v0.2/v0.3 auth promise; reflects current posture (no built-in auth, VPN/Tailscale/Cloudflare Access recommended)
+- [x] **CLAUDE.md tool list corrected** — `expand_subdomains` added; `lookup_geoip` clarified as enrichment-only (not a scan tab)
+- [x] **GitHub repo metadata** — description, topics, social preview set; bio updated
+
+## Done — v0.3.0 expand_subdomains (2026-05-20)
+
+- [x] **`expand_subdomains` tool** (`alterx`) — permutation-based subdomain wordlist generation; pure local transform, no network requests; 5000-entry cap; exposed as MCP tool, REST `/scan` dispatch, dashboard MUTATIONS tab
+- [x] **MUTATIONS tab** wired on dashboard and history detail pages
+- [x] **`ToolSourceLink`** attached to MUTATIONS panel (via alterx → GitHub link)
 
 ---
 
@@ -53,10 +78,47 @@ _(none)_
 - [x] **Structured JSON logs** — `slog.SetDefault(slog.NewJSONHandler(os.Stderr, nil))` in `main()`; startup + shutdown messages converted to `slog.Info` key-value pairs; `log.Fatalf` fatals still route through slog automatically
 - [x] **TODO housekeeping** — all shipped v0.2.0 engine + web items ticked; stale unchecked items corrected
 
+## Planned — v0.4.0 Cobra CLI
+
+Replace the hand-rolled `os.Args` dispatch in `engine/main.go` with a proper [Cobra](https://github.com/spf13/cobra) command tree. All existing modes keep working identically.
+
+**Command tree:**
+```
+hopper-recon serve          # existing: HTTP REST + MCP server (compose default)
+hopper-recon mcp            # existing: stdio MCP transport
+hopper-recon scan <tool> <target> [flags]   # NEW
+hopper-recon history [domain] [flags]       # NEW
+hopper-recon version                        # NEW
+```
+
+**`scan` flags:** `--json`, `--format text|json`, `--output <file>`, `--skip-policy`, `--subdomains` (for expand_subdomains), `--timeout`
+
+**`history` flags:** `--db <path>`, `--limit N`, `--json`
+
+**New files:** `engine/cmd_scan.go`, `engine/cmd_history.go`, `engine/cmd_version.go`, `engine/cmd_scan_test.go`, `engine/cmd_history_test.go`
+
+**New in tools.go:** `RunAlterxFromList(ctx, []string)` — takes pre-built subdomain list, skips internal subfinder call; used by CLI scan `--subdomains` flag.
+
+**Breaking change:** `serve` flags change from `-addr` (stdlib single-dash) to `--addr` (pflag). Dockerfile/compose use env vars only — no flags — so no compose breakage. Document in CHANGELOG.
+
+**No change to:** `tools.go` Run* functions, `server.go`, `db.go`, `policy.go`, `Dockerfile`, `docker-compose.yml`, existing test files.
+
+- [ ] Add `github.com/spf13/cobra v1.8.1` to `engine/go.mod`; run `go mod tidy`
+- [ ] Rewrite `main()` in `main.go` to Cobra root; move `serve`/`mcp` dispatch into `init()` blocks
+- [ ] Create `engine/cmd_scan.go` — `scan` command, `runScanCmd`, `renderScanOutput`
+- [ ] Create `engine/cmd_history.go` — `history` command, `runHistoryCmd`, `renderHistoryOutput`
+- [ ] Create `engine/cmd_version.go` — 15-line `version` command
+- [ ] Add `RunAlterxFromList` to `engine/tools.go`
+- [ ] Write `engine/cmd_scan_test.go` and `engine/cmd_history_test.go`
+- [ ] Bump `Version` to `v0.4.0` in `tools.go` and `web/package.json`
+- [ ] `CHANGELOG.md` entry for v0.4.0
+
+---
+
 ## Follow-ups
-- [ ] Engine package split — move to `engine/cmd/hopper-recon/main.go` + `engine/internal/` sub-packages once tool count grows beyond ~10. Currently 7 tools in a single `main` package — borderline but manageable. Revisit at tool 8.
 - [ ] Empty state illustrations for history / dashboard
 - [ ] **DKIM selector enumeration** — engine should query common DKIM selectors (`default`, `google`, `s1/s2`, `selector1/selector2`, `clk/clk2`, `pm`, `resend`, `k1`, `mxvault`) and merge their TXT records into the apex result. Today, parser regex `/v=dkim1|dkim=/` in `scan-parser.ts:172` is greedy and false-positives on `adkim=r` from DMARC records — coincidentally correct for setups that have DKIM, wrong for setups that don't. Tighten regex to `/v=dkim1/i` once selectors are enumerated.
+- [ ] **CLA bot** — [cla-assistant.io](https://cla-assistant.io/) protects ability to relicense if going SaaS later
 
 ---
 
@@ -189,9 +251,9 @@ Today's outbound footprint per scan is ~5 DNS queries + 1 TLS handshake + 1 HTTP
 - [x] `docker-compose.yml` at repo root — engine + web + Litestream sidecars; engine on `:9119` (host-bound loopback), web on `:3000`. Web no longer needs docker socket.
 - [ ] `DEPLOY.md` at repo root — env vars, ports, volumes, backup recipe, upgrade path, auth posture.
 
-### v0.3.0 — Self-hosted auth, audit, scope
+### v0.5.0 — Self-hosted auth, audit, scope
 
-> Note: hardcoded blocklist, audit log table, and `ALLOWED_DOMAINS` scope config were promoted to v0.1.0 (see "Abuse mitigations"). v0.3 layers identity + UI on top of those primitives.
+> Note: hardcoded blocklist, audit log table, and `ALLOWED_DOMAINS` scope config were promoted to v0.1.0 (see "Abuse mitigations"). v0.5 layers identity + UI on top of those primitives.
 
 - [ ] **Auth.js** integration (OIDC + email magic-link providers) — OSS, no external service required
 - [ ] `AUTH_MODE` env: `none` (behind VPN — show banner), `email` (magic link), `oidc`, `saml`
