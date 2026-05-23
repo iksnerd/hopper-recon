@@ -1,11 +1,16 @@
 import Link from "next/link"
 import { Panel } from "@/components/recon/panel"
+import pkg from "../../package.json"
 
 const CAPABILITIES = [
   { label: "SUBDOMAINS", tool: "passive_subdomains", desc: "osint enumeration via subfinder" },
-  { label: "DNS",        tool: "resolve_dns",        desc: "live resolution via dnsx" },
+  { label: "DNS",        tool: "resolve_dns",        desc: "a/aaaa/cname/mx/txt records via dnsx" },
   { label: "TLS",        tool: "fetch_tls_cert",     desc: "cert · cn · sans · expiry via tlsx" },
   { label: "HTTP",       tool: "probe_http",         desc: "stack detection via httpx @ 50 rps" },
+  { label: "CDN",        tool: "check_cdn",          desc: "cdn / cloud / waf attribution via cdncheck" },
+  { label: "URLS",       tool: "find_urls",          desc: "historical urls via wayback / commoncrawl" },
+  { label: "MUTATIONS",  tool: "expand_subdomains",  desc: "permutation wordlists via alterx" },
+  { label: "GEO",        tool: "lookup_geoip",       desc: "ip → country via maxmind geolite2" },
 ]
 
 export default function Home() {
@@ -16,7 +21,7 @@ export default function Home() {
           <span className="size-2 bg-terminal-green" aria-hidden />
           <span className="text-micro uppercase text-foreground tracking-widest font-bold">hopper-recon</span>
         </div>
-        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">v0.1.0-alpha</span>
+        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">v{pkg.version}</span>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-3 sm:px-6 py-8 sm:py-16">
@@ -30,8 +35,9 @@ export default function Home() {
             </h1>
             <p className="text-emphasis text-muted-foreground-2 leading-relaxed max-w-md">
               agent-first attack surface reconnaissance. passive, non-invasive,
-              consumed by ai agents via mcp. maps subdomains, dns, tls, and http
-              without touching target infrastructure.
+              consumed by ai agents via mcp. maps subdomains, dns, tls, http,
+              cdn, historical urls, and subdomain mutations without touching
+              target infrastructure.
             </p>
             <div className="mt-8 flex items-center gap-3">
               <Link
@@ -45,7 +51,7 @@ export default function Home() {
           </div>
 
           {/* Capabilities grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 gap-px bg-border border border-border">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border border border-border">
             {CAPABILITIES.map(({ label, tool, desc }) => (
               <div key={tool} className="bg-card p-4 hover:bg-card-hover transition-colors duration-100">
                 <div className="text-micro text-muted-foreground mb-1 tracking-widest uppercase font-bold">{label}</div>
@@ -80,7 +86,7 @@ export default function Home() {
 
       <footer className="border-t border-border px-6 py-3 flex items-center justify-between">
         <span className="text-micro tracking-widest uppercase text-muted-foreground-3">tier 1 + tier 2 tools only — strictly non-invasive</span>
-        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">powered by subfinder · dnsx · tlsx · httpx</span>
+        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">powered by subfinder · dnsx · tlsx · httpx · cdncheck · urlfinder · alterx</span>
       </footer>
     </div>
   )

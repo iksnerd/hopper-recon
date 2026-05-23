@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import pkg from "../../package.json"
 import { Radar, History, SlidersHorizontal, Info, type LucideIcon } from "lucide-react"
 import {
   Sidebar,
@@ -74,7 +75,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border px-4 py-2 group-data-[collapsible=icon]:hidden">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-micro tracking-widest uppercase text-muted-foreground-3">v0.1.0-alpha</span>
+          <span className="font-mono text-micro tracking-widest uppercase text-muted-foreground-3">v{pkg.version}</span>
           <span className="font-mono text-micro text-terminal-green-dim">●</span>
         </div>
       </SidebarFooter>
