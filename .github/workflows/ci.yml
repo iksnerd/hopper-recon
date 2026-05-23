@@ -78,3 +78,6 @@ jobs:
 
       - name: vitest
         run: npm test
+
+      - name: next build
+        run: npm run build
