@@ -6,6 +6,37 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-05-23
+
+### Added
+
+- **`next build` step in CI** — web job now runs `tsc → lint → vitest → next build`, catching broken imports and bad metadata that type-check alone misses.
+
+### Changed
+
+- **Landing page shows all 8 tools** — capabilities grid updated from 4 to 8 entries (CDN, URLS, MUTATIONS, GEO added); copy updated to mention cdn, historical urls, and subdomain mutations; footer credits extended to include `cdncheck · urlfinder · alterx`.
+- **Version strings are now dynamic** — landing page and sidebar both read `pkg.version` from `package.json` instead of a hardcoded `v0.1.0-alpha`.
+- **`web/package.json` version bumped to `0.3.0`** to match engine and git tag.
+- **Next.js metadata expanded** — `description` covers all 7 tools; `metadataBase`, `og:url`, `og:siteName`, Twitter card (`summary_large_image`) added; keywords expanded with `self-hosted`, `mcp-server`, `alterx`, `projectdiscovery`, `bug-bounty`.
+- **README quick start** — adds `docker compose ps` health check and explicit `open http://localhost:9120` command.
+- **README roadmap** — replaced stale v0.1.0 highlights with a clean v0.1→v0.3 changelog and a "Next" entry for auth; removed false v0.3.0 auth promise.
+- **Screenshots refreshed** — all four PNG screenshots retaken against the running v0.3.0 stack; dashboard shot now shows an active scan with all 7 tabs visible.
+- **CLAUDE.md tool list corrected** — `expand_subdomains` added; `lookup_geoip` clarified as enrichment-only (not a scan tab).
+
+### Fixed
+
+- **4 moderate npm vulnerabilities resolved** (`ws` / `wrangler` chain) via `npm audit fix`. Remaining 2 are `postcss` bundled inside `next@16` — no non-breaking fix available upstream.
+
+### Documentation
+
+- **CONTRIBUTING.md** — added third-party license note for LGPL-3 `sharp` transitive dependency.
+
+## [0.3.0] — 2026-05-20
+
+### Added
+
+- **`expand_subdomains` tool** (`alterx`) — permutation-based subdomain wordlist generation from existing subdomains. Pure local transform, no network requests. Exposed as MCP tool, REST `/scan` dispatch, and dashboard MUTATIONS tab with 5000-entry cap.
+
 ## [0.2.0] — 2026-05-13
 
 ### Fixed
