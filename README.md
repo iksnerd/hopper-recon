@@ -82,19 +82,25 @@ What the tool does, with a static `probe_http(anthropic.com)` example baked in. 
 
 ```
 hopper-recon/
-├── engine/             # Go server — HTTP REST + stdio MCP, owns SQLite
-│   ├── main.go         # Entrypoint, MCP tool registration
-│   ├── tools.go        # Recon-binary runners (subfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/alterx/geoip)
-│   ├── db.go           # SQLite + queries
-│   ├── server.go       # REST handlers + /mcp mount
+├── engine/                    # Go server — HTTP REST + stdio MCP, owns SQLite
+│   ├── main.go                # Entrypoint, mode dispatch, MCP tool registration
+│   ├── tools.go               # Recon-binary runners (subfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/alterx/geoip)
+│   ├── policy.go              # Scope filter, gov/mil blocklist, per-target cooldown
+│   ├── db.go                  # SQLite schema + queries (WAL mode, load-bearing for Litestream)
+│   ├── server.go              # REST handlers + /mcp mount
+│   ├── *_test.go              # Unit tests — policy, db, tools, server (no external deps)
 │   └── Dockerfile
-├── web/                # Next.js 16 thin client
-│   ├── src/app/        # App Router pages + API routes (proxies to engine)
-│   ├── src/lib/        # engine-client.ts · db.ts (D1 + Engine adapters) · scan-parser.ts
-│   └── src/components/recon/
-├── docker-compose.yml  # Engine + web + Litestream sidecars + volumes
-├── litestream.yml      # Replica config — local file (default) or S3 / R2 / Azure / GCS
-└── CLAUDE.md           # Agent + dev guide
+├── web/                       # Next.js 16 thin client
+│   ├── src/app/               # App Router pages + API routes (proxies to engine)
+│   ├── src/lib/               # engine-client.ts · db.ts (EngineDB + D1 adapters) · scan-parser.ts
+│   ├── src/components/recon/  # Shared UI primitives — Panel, ReconCard, PageHeader, GeoGlobe
+│   ├── schema.sql             # Cloudflare D1 mirror of engine/db.go schema
+│   └── Dockerfile
+├── docker-compose.yml         # Engine + web + Litestream sidecars + named volumes
+├── litestream.yml             # Replica config — local file (default) or S3 / R2 / Azure / GCS
+├── .env.example               # All env vars documented with defaults + secret column
+├── DEPLOY.md                  # Production deployment guide — env vars, ports, backup, upgrade
+└── CLAUDE.md                  # Agent + developer guide
 ```
 
 The dashboard's `/api/scan` validates input then forwards to `engine POST /scan`, which atomically runs the tool, writes the row, and returns the result. Reads (`/api/scans/*`) call the engine's REST endpoints via the `EngineDBAdapter` in `web/src/lib/db.ts`. There's a parallel `D1Adapter` for Cloudflare Workers deploys, where the web owns the database directly.
