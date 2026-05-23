@@ -17,7 +17,7 @@ import (
 // Version is single-sourced here so MCP server metadata (main.go) and the
 // outbound httpx User-Agent (below) agree at build time. Override at link
 // time with `-ldflags "-X main.Version=v0.3.0"` for tagged releases.
-var Version = "v0.2.0"
+var Version = "v0.3.0"
 
 const geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
 
@@ -171,6 +171,49 @@ func RunHttpx(ctx context.Context, target string) ([]string, error) {
 			"-H", "User-Agent: " + userAgent(),
 		},
 		"")
+}
+
+// AlterxEntry is a single subdomain mutation candidate from alterx.
+type AlterxEntry struct {
+	Word string `json:"word"`
+}
+
+// RunAlterx generates subdomain permutation candidates. It first collects
+// known subdomains via subfinder (read: no network contact with the target),
+// then pipes them into alterx to produce mutations. Returns an empty slice —
+// never an error — when subfinder finds nothing (nothing to mutate).
+func RunAlterx(ctx context.Context, domain string) ([]AlterxEntry, error) {
+	subs, err := RunSubfinder(ctx, domain)
+	if err != nil {
+		return nil, err
+	}
+	if len(subs) == 0 {
+		return nil, nil
+	}
+	// Cap input at 200 subs — alterx extrapolates patterns from a sample;
+	// piping all subs for large domains (10k+) burns most of the timeout budget.
+	const maxInput = 200
+	if len(subs) > maxInput {
+		subs = subs[:maxInput]
+	}
+	var sb strings.Builder
+	for _, s := range subs {
+		sb.WriteString(s.Host)
+		sb.WriteByte('\n')
+	}
+	// alterx outputs one candidate per line (plain text, no -json flag).
+	// Cap at 5000 so large inputs don't flood memory or the UI.
+	lines, err := execJSONL(ctx, "alterx", []string{"-silent", "-limit", "5000"}, sb.String())
+	if err != nil {
+		return nil, err
+	}
+	var findings []AlterxEntry
+	for _, line := range lines {
+		if line != "" {
+			findings = append(findings, AlterxEntry{Word: line})
+		}
+	}
+	return findings, nil
 }
 
 // GeoipEntry pairs an IP with its ISO 3166-1 alpha-2 country code.

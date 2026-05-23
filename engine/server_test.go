@@ -367,6 +367,34 @@ func TestHandleRunScan_Success(t *testing.T) {
 	}
 }
 
+func TestHandleRunScan_ExpandSubdomains(t *testing.T) {
+	db := newTestDB(t)
+	withToolRunner(t, func(_ context.Context, tool, _ string) ([]any, error) {
+		if tool != "expand_subdomains" {
+			t.Errorf("unexpected tool %q", tool)
+		}
+		return []any{
+			map[string]any{"word": "api-dev.example.com"},
+			map[string]any{"word": "api-staging.example.com"},
+		}, nil
+	})
+
+	rec := postScan(t, handleRunScan(db, plainPolicy()),
+		`{"tool":"expand_subdomains","target":"example.com"}`)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status=%d, want 200", rec.Code)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body["status"] != "completed" {
+		t.Errorf("status=%q, want completed", body["status"])
+	}
+	results, _ := body["results"].([]any)
+	if len(results) != 2 {
+		t.Errorf("want 2 results, got %d", len(results))
+	}
+}
+
 func TestHandleRunScan_Cooldown(t *testing.T) {
 	db := newTestDB(t)
 	withToolRunner(t, func(_ context.Context, _, _ string) ([]any, error) {

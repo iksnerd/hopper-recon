@@ -14,8 +14,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult,
+  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult,
 } from "@/lib/scan-parser"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
@@ -116,19 +116,21 @@ export default function DomainDetailPage() {
     try { return JSON.parse(row.results_json) } catch { return null }
   }
 
-  const subRaw  = summary ? get("passive_subdomains") : null
-  const dnsRaw  = summary ? get("resolve_dns")        : null
-  const tlsRaw  = summary ? get("fetch_tls_cert")     : null
-  const httpRaw = summary ? get("probe_http")         : null
-  const cdnRaw  = summary ? get("check_cdn")          : null
-  const urlsRaw = summary ? get("find_urls")          : null
+  const subRaw    = summary ? get("passive_subdomains") : null
+  const dnsRaw    = summary ? get("resolve_dns")        : null
+  const tlsRaw    = summary ? get("fetch_tls_cert")     : null
+  const httpRaw   = summary ? get("probe_http")         : null
+  const cdnRaw    = summary ? get("check_cdn")          : null
+  const urlsRaw   = summary ? get("find_urls")          : null
+  const alterxRaw = summary ? get("expand_subdomains")  : null
 
-  const subdomains: SubdomainResult | null = subRaw  ? parseSubdomains({ results: subRaw }) : null
-  const dns:        DnsResult | null       = dnsRaw  ? parseDns({ results: dnsRaw })        : null
-  const tls:        TlsResult | null       = tlsRaw  ? parseTls({ results: tlsRaw })        : null
-  const http:       HttpResult | null      = httpRaw ? parseHttp({ results: httpRaw })      : null
-  const cdn:        CdnResult | null       = cdnRaw  ? parseCdn({ results: cdnRaw })        : null
-  const urls:       UrlsResult | null      = urlsRaw ? parseUrls({ results: urlsRaw })      : null
+  const subdomains: SubdomainResult | null = subRaw    ? parseSubdomains({ results: subRaw })   : null
+  const dns:        DnsResult | null       = dnsRaw    ? parseDns({ results: dnsRaw })          : null
+  const tls:        TlsResult | null       = tlsRaw    ? parseTls({ results: tlsRaw })          : null
+  const http:       HttpResult | null      = httpRaw   ? parseHttp({ results: httpRaw })        : null
+  const cdn:        CdnResult | null       = cdnRaw    ? parseCdn({ results: cdnRaw })          : null
+  const urls:       UrlsResult | null      = urlsRaw   ? parseUrls({ results: urlsRaw })        : null
+  const alterx:     AlterxResult | null    = alterxRaw ? parseAlterx({ results: alterxRaw })    : null
 
   const [geoCountries, setGeoCountries] = React.useState<{ code: string; count: number }[]>([])
 
@@ -457,6 +459,22 @@ export default function DomainDetailPage() {
                     <div key={`${e.url}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
                       <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.url}</span>
                       <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{e.source}</span>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            )}
+
+            {/* Subdomain mutations */}
+            {alterx && alterx.entries.length > 0 && (
+              <Panel label={`// MUTATION CANDIDATES [${alterx.entries.length}]`} variant="inset">
+                <p className="text-micro text-muted-foreground-3 mb-3">
+                  unverified — generated from known subdomains via alterx
+                </p>
+                <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                  {alterx.entries.map((e, i) => (
+                    <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                      <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.word}</span>
                     </div>
                   ))}
                 </div>

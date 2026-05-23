@@ -163,6 +163,64 @@ func TestRunSubfinder_PropagatesError(t *testing.T) {
 	}
 }
 
+func TestRunAlterx_ParsesOutput(t *testing.T) {
+	subLine1 := `{"host":"api.example.com","sources":["crtsh"]}`
+	subLine2 := `{"host":"mail.example.com","sources":["dnsdumpster"]}`
+	// alterx outputs plain text (one candidate per line, no JSON format).
+	withExecJSONL(t,
+		[][]string{{subLine1, subLine2}, {"api-dev.example.com", "api-staging.example.com"}},
+		[]error{nil, nil},
+	)
+	findings, err := RunAlterx(context.Background(), "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("want 2 findings, got %d", len(findings))
+	}
+	if findings[0].Word != "api-dev.example.com" {
+		t.Errorf("findings[0].Word=%q, want api-dev.example.com", findings[0].Word)
+	}
+}
+
+func TestRunAlterx_EmptySubdomains(t *testing.T) {
+	// subfinder returns nothing → alterx is never called, result is nil.
+	withExecJSONL(t,
+		[][]string{{}},
+		[]error{nil},
+	)
+	findings, err := RunAlterx(context.Background(), "example.com")
+	if err != nil {
+		t.Errorf("empty subfinder: unexpected error %v", err)
+	}
+	if len(findings) != 0 {
+		t.Errorf("empty subfinder: got %d findings, want 0", len(findings))
+	}
+}
+
+func TestRunAlterx_SubfinderError(t *testing.T) {
+	withExecJSONL(t,
+		[][]string{nil},
+		[]error{errors.New("subfinder: not found")},
+	)
+	_, err := RunAlterx(context.Background(), "example.com")
+	if err == nil {
+		t.Error("expected error when subfinder fails")
+	}
+}
+
+func TestRunAlterx_AlterxError(t *testing.T) {
+	subLine := `{"host":"api.example.com","sources":["crtsh"]}`
+	withExecJSONL(t,
+		[][]string{{subLine}, nil},
+		[]error{nil, errors.New("alterx: not found")},
+	)
+	_, err := RunAlterx(context.Background(), "example.com")
+	if err == nil {
+		t.Error("expected error when alterx fails")
+	}
+}
+
 func TestLookupGeoip_EmptyInput(t *testing.T) {
 	results, err := LookupGeoip([]string{})
 	if err != nil {

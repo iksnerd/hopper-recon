@@ -10,6 +10,7 @@ RUN go install github.com/projectdiscovery/httpx/cmd/httpx@latest
 RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest
 RUN go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest
 RUN go install github.com/projectdiscovery/urlfinder/cmd/urlfinder@latest
+RUN go install github.com/projectdiscovery/alterx/cmd/alterx@latest
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -42,10 +43,11 @@ COPY --from=builder /go/bin/httpx /usr/local/bin/httpx
 COPY --from=builder /go/bin/tlsx /usr/local/bin/tlsx
 COPY --from=builder /go/bin/cdncheck /usr/local/bin/cdncheck
 COPY --from=builder /go/bin/urlfinder /usr/local/bin/urlfinder
+COPY --from=builder /go/bin/alterx /usr/local/bin/alterx
 COPY --from=builder /app/hopper-recon /usr/local/bin/hopper-recon
 
 # Ensure binaries are executable
-RUN chmod +x /usr/local/bin/subfinder /usr/local/bin/dnsx /usr/local/bin/httpx /usr/local/bin/tlsx /usr/local/bin/cdncheck /usr/local/bin/urlfinder /usr/local/bin/hopper-recon
+RUN chmod +x /usr/local/bin/subfinder /usr/local/bin/dnsx /usr/local/bin/httpx /usr/local/bin/tlsx /usr/local/bin/cdncheck /usr/local/bin/urlfinder /usr/local/bin/alterx /usr/local/bin/hopper-recon
 
 EXPOSE 8080
 VOLUME ["/data"]

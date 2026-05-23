@@ -10,8 +10,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult,
+  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult,
 } from "@/lib/scan-parser"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
@@ -44,6 +44,7 @@ const TOOLS = [
   { id: "probe_http",         label: "HTTP" },
   { id: "check_cdn",          label: "CDN" },
   { id: "find_urls",          label: "URLS" },
+  { id: "expand_subdomains",  label: "MUTATIONS" },
 ] as const
 
 type ToolId = (typeof TOOLS)[number]["id"]
@@ -60,6 +61,7 @@ interface ScanState {
   http: HttpResult | null
   cdn: CdnResult | null
   urls: UrlsResult | null
+  alterx: AlterxResult | null
   errors: Partial<Record<ToolId, string>>
 }
 
@@ -70,6 +72,7 @@ const EMPTY_STATES: Record<ToolId, ToolState> = {
   probe_http: "loading",
   check_cdn: "loading",
   find_urls: "loading",
+  expand_subdomains: "loading",
 }
 
 function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
@@ -88,6 +91,7 @@ function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
   if (id === "probe_http"         && scan.http)       return ` [${scan.http.status_code}]`
   if (id === "check_cdn"          && scan.cdn)        return scan.cdn.entries.length ? ` [${scan.cdn.entries.length}]` : ""
   if (id === "find_urls"          && scan.urls)       return ` [${scan.urls.entries.length}]`
+  if (id === "expand_subdomains"  && scan.alterx)     return ` [${scan.alterx.entries.length}]`
   return ""
 }
 
@@ -153,9 +157,9 @@ function DashboardInner() {
     const initial: ScanState = {
       target,
       states: { ...EMPTY_STATES },
-      startedAt: { passive_subdomains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0 },
+      startedAt: { passive_subdomains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
       durations: {},
-      subdomains: null, dns: null, tls: null, http: null, cdn: null, urls: null, errors: {},
+      subdomains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null, errors: {},
     }
     setScan(initial)
 
@@ -178,6 +182,7 @@ function DashboardInner() {
               ...(tool === "probe_http"         ? { http: parseHttp(data) }             : {}),
               ...(tool === "check_cdn"          ? { cdn: parseCdn(data) }               : {}),
               ...(tool === "find_urls"          ? { urls: parseUrls(data) }             : {}),
+              ...(tool === "expand_subdomains"  ? { alterx: parseAlterx(data) }        : {}),
             }
           })
         })
@@ -714,6 +719,36 @@ function DashboardInner() {
                         )}
                       </Panel>
                     </div>
+                  )}
+                </ToolPanel>
+              </TabsContent>
+              {/* Subdomain mutations */}
+              <TabsContent value="expand_subdomains" className="pt-4 mt-0">
+                <ToolPanel state={scan.states.expand_subdomains} error={scan.errors.expand_subdomains}>
+                  {scan.alterx && (
+                    <Panel
+                      label={`// MUTATION CANDIDATES [${scan.alterx.entries.length}]`}
+                      action={<ToolSourceLink name="alterx" url="https://github.com/projectdiscovery/alterx" />}
+                    >
+                      {scan.alterx.entries.length === 0 ? (
+                        <p className="text-body text-muted-foreground py-6">
+                          no mutations generated — subfinder found no subdomains to permute
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-micro text-muted-foreground-3 mb-3">
+                            unverified candidates — resolve with dnsx to confirm existence
+                          </p>
+                          <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                            {scan.alterx.entries.map((e, i) => (
+                              <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                                <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.word}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </Panel>
                   )}
                 </ToolPanel>
               </TabsContent>

@@ -15,6 +15,7 @@ const RECON_TOOLS: Credit[] = [
   { name: "tlsx",          url: "https://github.com/projectdiscovery/tlsx",      note: "tls cert details — sans, expiry, cipher, weak / wildcard / expired flags" },
   { name: "cdncheck",      url: "https://github.com/projectdiscovery/cdncheck",  note: "detect cdn / waf / cloud provider for an ip or host" },
   { name: "urlfinder",     url: "https://github.com/projectdiscovery/urlfinder", note: "passive historical url discovery from web archives + osint sources" },
+  { name: "alterx",        url: "https://github.com/projectdiscovery/alterx",    note: "subdomain permutation wordlist generator using dsl patterns" },
   { name: "geoip2-golang", url: "https://github.com/oschwald/geoip2-golang",     note: "maxmind geolite2 mmdb reader (offline ip → country)" },
 ]
 

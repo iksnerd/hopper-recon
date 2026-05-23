@@ -49,6 +49,16 @@ func runTool(ctx context.Context, tool, target string) ([]any, error) {
 		raw, err = RunCdncheck(ctx, target)
 	case "find_urls":
 		raw, err = RunUrlfinder(ctx, target)
+	case "expand_subdomains":
+		findings, ferr := RunAlterx(ctx, target)
+		if ferr != nil {
+			return nil, ferr
+		}
+		out := make([]any, len(findings))
+		for i, f := range findings {
+			out[i] = f
+		}
+		return out, nil
 	default:
 		return nil, fmt.Errorf("unknown tool %q", tool)
 	}

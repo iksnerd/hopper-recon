@@ -90,6 +90,14 @@ export interface UrlsResult {
   hostCounts: { host: string; count: number }[]
 }
 
+export interface AlterxEntry {
+  word: string
+}
+
+export interface AlterxResult {
+  entries: AlterxEntry[]
+}
+
 // ── Category patterns ─────────────────────────────────────────────────────────
 
 const SUBDOMAIN_PATTERNS: [RegExp, string][] = [
@@ -305,6 +313,18 @@ export function parseUrls(apiResult: unknown): UrlsResult {
       .map(([host, count]) => ({ host, count }))
       .sort((a, b) => b.count - a.count),
   }
+}
+
+// alterx generates subdomain permutation candidates from a known subdomain
+// list. Each entry carries a `word` — the mutated candidate hostname. These are
+// unverified; pair with dnsx to find which ones actually resolve.
+export function parseAlterx(apiResult: unknown): AlterxResult {
+  const raw = apiResult as { results: Array<{ word?: string }> }
+  const entries: AlterxEntry[] = []
+  for (const r of raw?.results ?? []) {
+    if (r.word) entries.push({ word: r.word })
+  }
+  return { entries }
 }
 
 // cdncheck emits one line per attributed IP — exactly one of cdn/cloud/waf is

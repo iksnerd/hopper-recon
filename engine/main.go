@@ -24,6 +24,11 @@ type subfinderOutput struct {
 	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
 }
 
+type alterxOutput struct {
+	Findings []AlterxEntry `json:"findings" jsonschema:"Subdomain mutation candidates generated from passive discoveries"`
+	Error    string        `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
+}
+
 type targetInput struct {
 	Target string `json:"target" jsonschema:"The domain or subdomain to act on"`
 }
@@ -194,6 +199,17 @@ func buildMCPServer(ctx MCPCtx) *mcp.Server {
 		func(c context.Context, in urlfinderInput) ([]string, error) { return RunUrlfinder(c, in.Domain) },
 		func(r []string) linesOutput { return linesOutput{Results: r} },
 		func(e string) linesOutput { return linesOutput{Error: e} }))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "expand_subdomains",
+		Description: "Generate subdomain permutation candidates from passive discoveries (subfinder → alterx). Runs subfinder first to collect known subdomains, then produces mutations like api-dev.example.com or staging-api.example.com. No requests reach the target directly — mutations are candidates only, not verified.",
+	}, gated(ctx, "expand_subdomains",
+		func(in subfinderInput) string { return in.Domain },
+		func(c context.Context, in subfinderInput) ([]AlterxEntry, error) {
+			return RunAlterx(c, in.Domain)
+		},
+		func(r []AlterxEntry) alterxOutput { return alterxOutput{Findings: r} },
+		func(e string) alterxOutput { return alterxOutput{Error: e} }))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "lookup_geoip",

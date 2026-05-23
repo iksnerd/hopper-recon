@@ -7,6 +7,7 @@ const VALID_TOOLS = [
   "probe_http",
   "check_cdn",
   "find_urls",
+  "expand_subdomains",
 ] as const
 type Tool = (typeof VALID_TOOLS)[number]
 
