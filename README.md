@@ -54,7 +54,7 @@ The `/config` endpoint on the engine reports scope/auth state as booleans (no en
 
 ### Dashboard — `/dashboard`
 
-Runs all OSINT tools in parallel against a target. The recent-targets idle state appears when no scan is active. The advisory banner shows when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured (one of the v0.1 abuse mitigations).
+Runs all 7 OSINT tools in parallel against a target with live elapsed timers. Each tab populates as results arrive — subdomains, DNS records, TLS cert, HTTP stack, CDN attribution, historical URLs, and subdomain mutations. The advisory banner shows when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured.
 
 ![Dashboard with operator advisory banner](./docs/screenshots/02-dashboard-with-banner.png)
 
@@ -84,7 +84,7 @@ What the tool does, with a static `probe_http(anthropic.com)` example baked in. 
 hopper-recon/
 ├── engine/             # Go server — HTTP REST + stdio MCP, owns SQLite
 │   ├── main.go         # Entrypoint, MCP tool registration
-│   ├── tools.go        # Recon-binary runners (subfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/geoip)
+│   ├── tools.go        # Recon-binary runners (subfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/alterx/geoip)
 │   ├── db.go           # SQLite + queries
 │   ├── server.go       # REST handlers + /mcp mount
 │   └── Dockerfile
@@ -126,17 +126,23 @@ The dashboard's `/api/scan` validates input then forwards to `engine POST /scan`
 git clone https://github.com/iksnerd/hopper-recon
 cd hopper-recon
 
-# Optional: drop in a GeoLite2 mmdb so the geo-globe renders
+# Optional but recommended: drop in a GeoLite2 mmdb so the geo-globe renders
 mkdir -p ~/.config/hopper-recon
 curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb \
      -o ~/.config/hopper-recon/GeoLite2-Country.mmdb
 
-# Bring up the stack
+# Bring up the stack (engine + web + Litestream sidecars)
 docker compose up -d --build
 
-# Dashboard at http://localhost:9120
-# Engine REST + MCP at http://127.0.0.1:9119 (loopback only)
+# Verify both containers are healthy
+docker compose ps
+
+# Open the dashboard
+open http://localhost:9120        # macOS
+# xdg-open http://localhost:9120  # Linux
 ```
+
+The engine also listens at `http://127.0.0.1:9119` (loopback only) for direct MCP and REST access.
 
 The engine binds to `127.0.0.1:9119` on the host (off the well-known `:8080` to avoid colliding with the dozen other dev tools that grab `:8080`). Inside the compose network the engine listens on `:8080` and the web reaches it via DNS at `engine:8080`.
 
@@ -299,11 +305,12 @@ For Cloudflare (D1 + Workers): the web's `D1Adapter` in `lib/db.ts` is the produ
 
 ## Roadmap
 
-See [TODO.md](./TODO.md). Highlights:
+See [TODO.md](./TODO.md).
 
-- **v0.1.0 OSS release** — license + docs + CI checks workflow (image publishing intentionally deferred — operators build locally)
-- **v0.1.0 abuse mitigations** — `*.gov`/`*.mil` blocklist, per-target cooldown, audit log, optional `HOPPER_ALLOWED_DOMAINS` scope, first-boot warning banner
-- **v0.3.0 self-hosted auth** — Auth.js (OIDC + email magic-link), `/admin` route, audit-log viewer
+- **v0.1.0** ✓ — MIT license, CI, SECURITY.md, abuse mitigations (gov/mil blocklist, cooldown, audit log, scope filter, advisory banner)
+- **v0.2.0** ✓ — engine owns SQLite + all recon tools, web is a thin HTTP client, MCP at `/mcp` for AI agents
+- **v0.3.0** ✓ — alterx (`expand_subdomains`) mutation tool, OSS polish, Litestream backups
+- **Next** — self-hosted auth (Auth.js — OIDC + email magic-link), `/admin` route, audit-log viewer
 
 ---
 
