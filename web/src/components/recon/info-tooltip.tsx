@@ -2,22 +2,29 @@
 
 import { Info } from "lucide-react"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 export function InfoTooltip({ text }: { text: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex items-center cursor-help text-muted-foreground-3 hover:text-muted-foreground transition-colors ml-1">
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center cursor-pointer text-muted-foreground-3 hover:text-muted-foreground transition-colors ml-1 align-middle"
+          aria-label="more info"
+        >
           <Info className="size-3" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        className="max-w-[260px] text-xs leading-relaxed rounded-none p-3 font-mono"
+      >
         {text}
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   )
 }

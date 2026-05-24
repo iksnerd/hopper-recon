@@ -370,11 +370,13 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 // without scope or auth.
 func handleConfig(policy *Policy) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
+		_, geoErr := loadGeoipReader()
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version":    Version,
 			"has_scope":  policy.HasScope(),
 			"has_auth":   false, // wired in v0.3 with Auth.js
 			"cooldown_s": cooldownSeconds,
+			"has_geo_db": geoErr == nil,
 		})
 	}
 }

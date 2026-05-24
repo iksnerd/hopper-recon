@@ -7,6 +7,7 @@ interface EngineConfig {
   has_scope: boolean
   has_auth: boolean
   cooldown_s: number
+  has_geo_db: boolean
 }
 
 export async function GET() {
