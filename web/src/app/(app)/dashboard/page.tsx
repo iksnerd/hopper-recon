@@ -13,6 +13,7 @@ import {
   parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
   type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
+import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { TOOLTIP_STYLE, CHART_FILLS, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
@@ -809,6 +810,12 @@ function DashboardInner() {
                           <div key={`${e.host}-${i}`} className="group flex items-center gap-3 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
                             <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
                             <span className="font-mono text-micro text-muted-foreground-3 shrink-0">{e.a[0]}</span>
+                            <Link
+                              href={`/dashboard?domain=${encodeURIComponent(e.host)}`}
+                              className="hidden group-hover:inline font-mono text-micro text-terminal-green hover:underline shrink-0"
+                            >
+                              scan →
+                            </Link>
                           </div>
                         ))}
                       </div>
