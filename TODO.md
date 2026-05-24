@@ -6,8 +6,9 @@ The shortest road to "a company can deploy this on their Kubernetes cluster, fre
 1. **v0.1.0 OSS release** — license + docs + CI checks workflow ✓
 2. **v0.2.0 engine refactor** ✓ — engine owns SQLite + recon tools, web is thin HTTP client
 3. **v0.3.0 alterx** ✓ — expand_subdomains tool + OSS polish (repo public, CI, screenshots, releases)
-4. **v0.4.0 Cobra CLI** — `hopper-recon scan <tool> <target>`, `history`, `version` subcommands
-5. **v0.5.0 Self-hosted auth** — Auth.js OIDC + email magic-link, `AUTH_MODE` env switch
+4. **v0.3.2 mutations UX** ✓ — resolve_mutations, DKIM enumeration, scan→ links (2026-05-24)
+5. **v0.4.0 Cobra CLI** — `hopper-recon scan <tool> <target>`, `history`, `version` subcommands
+6. **v0.5.0 Self-hosted auth** — Auth.js OIDC + email magic-link, `AUTH_MODE` env switch
 
 Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny cluster (Hetzner CX11 or Oracle Free Tier ARM) $0–5/mo.
 
@@ -15,6 +16,15 @@ Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny clu
 
 ## In Progress
 _(none)_
+
+---
+
+## Done — v0.3.2 mutations UX (2026-05-24)
+
+- [x] **`resolve_mutations` tool** — engine: `RunResolveMutations` (subfinder → alterx → dnsx `-a`); REST dispatch + MCP handler. Web: `VALID_TOOLS`, `parseMutationResolve` + `ResolvedMutResult` types, dashboard "resolve →" button that fires on demand and renders `// LIVE MUTATIONS` panel, history detail `// LIVE MUTATIONS` panel. 4 new tests (2 tool, 1 server dispatch, 1 DKIM merge).
+- [x] **DKIM selector enumeration** — `RunDnsx` now queries 12 common selectors (`default`, `google`, `s1/s2`, `selector1/selector2`, `clk/clk2`, `pm`, `resend`, `k1`, `mxvault`) via a single batched dnsx stdin call; merges found TXT records into the apex result alongside DMARC. Refactored duplicate merge logic into `mergeTxtLines` helper. DKIM regex was already `/v=dkim1/i`. All existing `RunDnsx` tests updated for the 3-call pattern (apex + dmarc + dkim-selectors).
+- [x] **Mutation info callouts** — dashboard MUTATIONS tab gets an `Alert` callout (Info icon + prose) explaining unverified permutations + need for DNS resolve pass; history detail panel gets an `InfoTooltip` on the "unverified candidates" note.
+- [x] **"scan →" link on live mutation rows** — each row in `// LIVE MUTATIONS` shows a green `scan →` link on hover; opens dashboard pre-filled with that hostname for a full 7-tool scan.
 
 ---
 
@@ -117,9 +127,8 @@ hopper-recon version                        # NEW
 
 ## Follow-ups
 - [ ] Empty state illustrations for history / dashboard
-- [x] **DKIM selector enumeration** — `RunDnsx` now queries 12 common selectors (`default`, `google`, `s1/s2`, `selector1/selector2`, `clk/clk2`, `pm`, `resend`, `k1`, `mxvault`) in a single dnsx batch and merges any found TXT records into the apex result. DKIM regex was already `/v=dkim1/i`. Tests updated for 3-call pattern.
-- [x] **`resolve_mutations` tool** — engine: `RunResolveMutations` (alterx → dnsx `-a`), REST dispatch, MCP handler. Web: VALID_TOOLS, `parseMutationResolve`, dashboard "resolve →" button + `// LIVE MUTATIONS` panel, history detail `// LIVE MUTATIONS` panel. Tests: 4 new (2 tools, 1 server dispatch, 1 DKIM merge).
 - [ ] **CLA bot** — [cla-assistant.io](https://cla-assistant.io/) protects ability to relicense if going SaaS later
+- [ ] Screenshots refresh — retake dashboard + history screenshots to show MUTATIONS tab, resolve button, LIVE MUTATIONS panel, and scan→ links
 
 ---
 
