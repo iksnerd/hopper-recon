@@ -117,7 +117,8 @@ hopper-recon version                        # NEW
 
 ## Follow-ups
 - [ ] Empty state illustrations for history / dashboard
-- [ ] **DKIM selector enumeration** — engine should query common DKIM selectors (`default`, `google`, `s1/s2`, `selector1/selector2`, `clk/clk2`, `pm`, `resend`, `k1`, `mxvault`) and merge their TXT records into the apex result. Today, parser regex `/v=dkim1|dkim=/` in `scan-parser.ts:172` is greedy and false-positives on `adkim=r` from DMARC records — coincidentally correct for setups that have DKIM, wrong for setups that don't. Tighten regex to `/v=dkim1/i` once selectors are enumerated.
+- [x] **DKIM selector enumeration** — `RunDnsx` now queries 12 common selectors (`default`, `google`, `s1/s2`, `selector1/selector2`, `clk/clk2`, `pm`, `resend`, `k1`, `mxvault`) in a single dnsx batch and merges any found TXT records into the apex result. DKIM regex was already `/v=dkim1/i`. Tests updated for 3-call pattern.
+- [x] **`resolve_mutations` tool** — engine: `RunResolveMutations` (alterx → dnsx `-a`), REST dispatch, MCP handler. Web: VALID_TOOLS, `parseMutationResolve`, dashboard "resolve →" button + `// LIVE MUTATIONS` panel, history detail `// LIVE MUTATIONS` panel. Tests: 4 new (2 tools, 1 server dispatch, 1 DKIM merge).
 - [ ] **CLA bot** — [cla-assistant.io](https://cla-assistant.io/) protects ability to relicense if going SaaS later
 
 ---

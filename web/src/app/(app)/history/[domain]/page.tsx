@@ -14,8 +14,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult,
+  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
@@ -28,6 +28,7 @@ import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
+import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { GeoGlobe } from "@/components/recon/geo-globe"
 
 // Build a DomainSummary from raw rows (DESC order — first seen per tool = most recent)
@@ -122,15 +123,17 @@ export default function DomainDetailPage() {
   const httpRaw   = summary ? get("probe_http")         : null
   const cdnRaw    = summary ? get("check_cdn")          : null
   const urlsRaw   = summary ? get("find_urls")          : null
-  const alterxRaw = summary ? get("expand_subdomains")  : null
+  const alterxRaw      = summary ? get("expand_subdomains")  : null
+  const resolvedMutRaw = summary ? get("resolve_mutations")  : null
 
-  const subdomains: SubdomainResult | null = subRaw    ? parseSubdomains({ results: subRaw })   : null
-  const dns:        DnsResult | null       = dnsRaw    ? parseDns({ results: dnsRaw })          : null
-  const tls:        TlsResult | null       = tlsRaw    ? parseTls({ results: tlsRaw })          : null
-  const http:       HttpResult | null      = httpRaw   ? parseHttp({ results: httpRaw })        : null
-  const cdn:        CdnResult | null       = cdnRaw    ? parseCdn({ results: cdnRaw })          : null
-  const urls:       UrlsResult | null      = urlsRaw   ? parseUrls({ results: urlsRaw })        : null
-  const alterx:     AlterxResult | null    = alterxRaw ? parseAlterx({ results: alterxRaw })    : null
+  const subdomains:    SubdomainResult | null    = subRaw         ? parseSubdomains({ results: subRaw })           : null
+  const dns:           DnsResult | null          = dnsRaw         ? parseDns({ results: dnsRaw })                  : null
+  const tls:           TlsResult | null          = tlsRaw         ? parseTls({ results: tlsRaw })                  : null
+  const http:          HttpResult | null         = httpRaw        ? parseHttp({ results: httpRaw })                 : null
+  const cdn:           CdnResult | null          = cdnRaw         ? parseCdn({ results: cdnRaw })                   : null
+  const urls:          UrlsResult | null         = urlsRaw        ? parseUrls({ results: urlsRaw })                 : null
+  const alterx:        AlterxResult | null       = alterxRaw      ? parseAlterx({ results: alterxRaw })             : null
+  const resolvedMuts:  ResolvedMutResult | null  = resolvedMutRaw ? parseMutationResolve({ results: resolvedMutRaw }) : null
 
   const [geoCountries, setGeoCountries] = React.useState<{ code: string; count: number }[]>([])
 
@@ -476,6 +479,25 @@ export default function DomainDetailPage() {
                   {alterx.entries.map((e, i) => (
                     <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
                       <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.word}</span>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            )}
+
+            {/* Resolved mutations */}
+            {resolvedMuts && resolvedMuts.entries.length > 0 && (
+              <Panel
+                label={`// LIVE MUTATIONS [${resolvedMuts.entries.length}]`}
+                variant="inset"
+                action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
+              >
+                <p className="text-micro text-muted-foreground-3 mb-3">mutation candidates confirmed live via DNS A record lookup</p>
+                <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                  {resolvedMuts.entries.map((e, i) => (
+                    <div key={`${e.host}-${i}`} className="group flex items-center gap-3 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                      <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
+                      <span className="font-mono text-micro text-muted-foreground-3 shrink-0">{e.a[0]}</span>
                     </div>
                   ))}
                 </div>

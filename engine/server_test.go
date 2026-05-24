@@ -395,6 +395,33 @@ func TestHandleRunScan_ExpandSubdomains(t *testing.T) {
 	}
 }
 
+func TestHandleRunScan_ResolveMutations(t *testing.T) {
+	db := newTestDB(t)
+	withToolRunner(t, func(_ context.Context, tool, _ string) ([]any, error) {
+		if tool != "resolve_mutations" {
+			t.Errorf("unexpected tool %q", tool)
+		}
+		return []any{
+			map[string]any{"host": "api-dev.example.com", "a": []any{"1.2.3.4"}},
+		}, nil
+	})
+
+	rec := postScan(t, handleRunScan(db, plainPolicy()),
+		`{"tool":"resolve_mutations","target":"example.com"}`)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status=%d, want 200", rec.Code)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body["status"] != "completed" {
+		t.Errorf("status=%q, want completed", body["status"])
+	}
+	results, _ := body["results"].([]any)
+	if len(results) != 1 {
+		t.Errorf("want 1 result, got %d", len(results))
+	}
+}
+
 func TestHandleRunScan_Cooldown(t *testing.T) {
 	db := newTestDB(t)
 	withToolRunner(t, func(_ context.Context, _, _ string) ([]any, error) {

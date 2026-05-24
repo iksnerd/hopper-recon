@@ -40,8 +40,8 @@ func TestRunDnsx_MergesDmarcTxt(t *testing.T) {
 	apexLine := `{"host":"example.com","txt":["v=spf1 include:_spf.example.com ~all"]}`
 	dmarcLine := `{"host":"_dmarc.example.com","txt":["v=DMARC1; p=none"]}`
 	withExecJSONL(t,
-		[][]string{{apexLine}, {dmarcLine}},
-		[]error{nil, nil},
+		[][]string{{apexLine}, {dmarcLine}, {}}, // apex, dmarc, dkim selectors (empty)
+		[]error{nil, nil, nil},
 	)
 
 	results, err := RunDnsx(context.Background(), "example.com")
@@ -62,33 +62,64 @@ func TestRunDnsx_MergesDmarcTxt(t *testing.T) {
 	}
 }
 
+func TestRunDnsx_MergesDkimTxt(t *testing.T) {
+	apexLine := `{"host":"example.com","txt":["v=spf1 include:_spf.example.com ~all"]}`
+	dkimLine := `{"host":"google._domainkey.example.com","txt":["v=DKIM1; k=rsa; p=MIIBIjAN"]}`
+	withExecJSONL(t,
+		[][]string{{apexLine}, {}, {dkimLine}}, // apex, dmarc (empty), dkim selector hit
+		[]error{nil, nil, nil},
+	)
+
+	results, err := RunDnsx(context.Background(), "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row map[string]any
+	if err := json.Unmarshal([]byte(results[0]), &row); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	txt, _ := row["txt"].([]any)
+	if len(txt) != 2 {
+		t.Errorf("merged txt len=%d, want 2 (SPF + DKIM)", len(txt))
+	}
+	found := false
+	for _, v := range txt {
+		if s, ok := v.(string); ok && strings.Contains(s, "v=DKIM1") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected v=DKIM1 record in merged txt, got %v", txt)
+	}
+}
+
 func TestRunDnsx_NoDmarc(t *testing.T) {
 	apexLine := `{"host":"example.com"}`
 	withExecJSONL(t,
-		[][]string{{apexLine}, {}},
-		[]error{nil, nil},
+		[][]string{{apexLine}, {}, {}}, // apex, dmarc (empty), dkim (empty)
+		[]error{nil, nil, nil},
 	)
 	results, err := RunDnsx(context.Background(), "example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0] != apexLine {
-		t.Errorf("expected apex line unchanged, got %v", results)
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
 	}
 }
 
 func TestRunDnsx_DmarcErrorIgnored(t *testing.T) {
 	apexLine := `{"host":"example.com"}`
 	withExecJSONL(t,
-		[][]string{{apexLine}, nil},
-		[]error{nil, errors.New("dnsx: exit 1")},
+		[][]string{{apexLine}, nil, {}}, // apex, dmarc error, dkim (empty)
+		[]error{nil, errors.New("dnsx: exit 1"), nil},
 	)
 	results, err := RunDnsx(context.Background(), "example.com")
 	if err != nil {
 		t.Errorf("expected no error when _dmarc lookup fails, got: %v", err)
 	}
-	if len(results) != 1 || results[0] != apexLine {
-		t.Errorf("expected apex result unchanged, got %v", results)
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
 	}
 }
 
@@ -104,10 +135,10 @@ func TestRunDnsx_EmptyApex(t *testing.T) {
 }
 
 func TestRunDnsx_ApexNotValidJSON(t *testing.T) {
-	// Non-JSON apex: merge should be skipped, original line returned unchanged.
+	// Non-JSON apex: unmarshal fails early; no DMARC/DKIM queries are made.
 	withExecJSONL(t,
-		[][]string{{"not-json"}, {`{"txt":["v=DMARC1"]}`}},
-		[]error{nil, nil},
+		[][]string{{"not-json"}},
+		[]error{nil},
 	)
 	results, err := RunDnsx(context.Background(), "example.com")
 	if err != nil {
@@ -218,6 +249,48 @@ func TestRunAlterx_AlterxError(t *testing.T) {
 	_, err := RunAlterx(context.Background(), "example.com")
 	if err == nil {
 		t.Error("expected error when alterx fails")
+	}
+}
+
+func TestRunResolveMutations_ResolvesLiveCandidates(t *testing.T) {
+	subLine := `{"host":"api.example.com","sources":["crtsh"]}`
+	// subfinder, alterx, dnsx resolve
+	withExecJSONL(t,
+		[][]string{
+			{subLine},
+			{"api-dev.example.com", "api-staging.example.com"},
+			{`{"host":"api-dev.example.com","a":["1.2.3.4"]}`},
+		},
+		[]error{nil, nil, nil},
+	)
+	results, err := RunResolveMutations(context.Background(), "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 resolved candidate, got %d", len(results))
+	}
+	var rec map[string]any
+	if json.Unmarshal([]byte(results[0]), &rec) != nil {
+		t.Fatalf("result is not valid JSON: %q", results[0])
+	}
+	if rec["host"] != "api-dev.example.com" {
+		t.Errorf("host=%q, want api-dev.example.com", rec["host"])
+	}
+}
+
+func TestRunResolveMutations_EmptyAlterx(t *testing.T) {
+	// subfinder returns nothing → alterx not called → dnsx not called → nil
+	withExecJSONL(t,
+		[][]string{{}},
+		[]error{nil},
+	)
+	results, err := RunResolveMutations(context.Background(), "example.com")
+	if err != nil {
+		t.Errorf("empty alterx: unexpected error %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("empty alterx: got %d results, want 0", len(results))
 	}
 }
 

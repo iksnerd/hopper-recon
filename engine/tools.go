@@ -94,8 +94,33 @@ func RunSubfinder(ctx context.Context, domain string) ([]SubfinderEntry, error) 
 	return findings, nil
 }
 
-// RunDnsx resolves a domain and merges _dmarc.<domain> TXT records into the
-// apex result so the parser can detect DMARC presence at the same level as SPF.
+// dkimSelectors is the ordered list of common DKIM selector names queried during
+// DNS resolution. Each is tried as <selector>._domainkey.<domain>. Any found
+// TXT records are merged into the apex result so the parser sees v=DKIM1 at the
+// same level as SPF/DMARC — without requiring the caller to know the selector.
+var dkimSelectors = []string{
+	"default", "google", "s1", "s2", "selector1", "selector2",
+	"clk", "clk2", "pm", "resend", "k1", "mxvault",
+}
+
+// mergeTxtLines extracts the "txt" array from each JSONL line and appends
+// non-empty entries to dst.
+func mergeTxtLines(dst []any, lines []string) []any {
+	for _, l := range lines {
+		var rec map[string]any
+		if json.Unmarshal([]byte(l), &rec) != nil {
+			continue
+		}
+		if txts, ok := rec["txt"].([]any); ok {
+			dst = append(dst, txts...)
+		}
+	}
+	return dst
+}
+
+// RunDnsx resolves a domain and merges _dmarc.<domain> TXT records and common
+// DKIM selector TXT records into the apex result so the parser can detect
+// DMARC and DKIM presence without knowing which selector the domain uses.
 func RunDnsx(ctx context.Context, target string) ([]string, error) {
 	results, err := execJSONL(ctx, "dnsx",
 		[]string{"-silent", "-a", "-aaaa", "-cname", "-ns", "-mx", "-txt", "-cdn", "-asn", "-json"},
@@ -107,27 +132,24 @@ func RunDnsx(ctx context.Context, target string) ([]string, error) {
 		return results, nil
 	}
 
-	dmarcLines, dmarcErr := execJSONL(ctx, "dnsx",
-		[]string{"-silent", "-txt", "-json"},
-		"_dmarc."+target+"\n")
-	if dmarcErr != nil || len(dmarcLines) == 0 {
-		return results, nil
-	}
-
 	var apex map[string]any
 	if json.Unmarshal([]byte(results[0]), &apex) != nil {
 		return results, nil
 	}
 	existing, _ := apex["txt"].([]any)
-	for _, dl := range dmarcLines {
-		var dmarc map[string]any
-		if json.Unmarshal([]byte(dl), &dmarc) != nil {
-			continue
-		}
-		if dt, ok := dmarc["txt"].([]any); ok {
-			existing = append(existing, dt...)
-		}
+
+	// Merge _dmarc TXT records.
+	dmarcLines, _ := execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, "_dmarc."+target+"\n")
+	existing = mergeTxtLines(existing, dmarcLines)
+
+	// Merge DKIM selector TXT records (one batch, all selectors via stdin).
+	var dkimSB strings.Builder
+	for _, sel := range dkimSelectors {
+		fmt.Fprintf(&dkimSB, "%s._domainkey.%s\n", sel, target)
 	}
+	dkimLines, _ := execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, dkimSB.String())
+	existing = mergeTxtLines(existing, dkimLines)
+
 	apex["txt"] = existing
 	if merged, mergeErr := json.Marshal(apex); mergeErr == nil {
 		results[0] = string(merged)
@@ -214,6 +236,26 @@ func RunAlterx(ctx context.Context, domain string) ([]AlterxEntry, error) {
 		}
 	}
 	return findings, nil
+}
+
+// RunResolveMutations generates subdomain mutation candidates (via RunAlterx)
+// and pipes them through dnsx to find which ones actually resolve. Only
+// candidates with an A record are returned. Results share the same JSON shape
+// as RunDnsx but cover only A records — no DMARC/DKIM enrichment.
+func RunResolveMutations(ctx context.Context, domain string) ([]string, error) {
+	candidates, err := RunAlterx(ctx, domain)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	var sb strings.Builder
+	for _, c := range candidates {
+		sb.WriteString(c.Word)
+		sb.WriteByte('\n')
+	}
+	return execJSONL(ctx, "dnsx", []string{"-silent", "-a", "-json"}, sb.String())
 }
 
 // GeoipEntry pairs an IP with its ISO 3166-1 alpha-2 country code.

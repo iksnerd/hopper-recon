@@ -212,6 +212,17 @@ func buildMCPServer(ctx MCPCtx) *mcp.Server {
 		func(e string) alterxOutput { return alterxOutput{Error: e} }))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "resolve_mutations",
+		Description: "Generate subdomain mutation candidates (subfinder → alterx) then resolve them via DNS (dnsx) to find which ones actually exist. Returns only candidates with a live A record. Use after expand_subdomains to confirm which permutations are real hosts.",
+	}, gated(ctx, "resolve_mutations",
+		func(in subfinderInput) string { return in.Domain },
+		func(c context.Context, in subfinderInput) ([]string, error) {
+			return RunResolveMutations(c, in.Domain)
+		},
+		func(r []string) linesOutput { return linesOutput{Results: r} },
+		func(e string) linesOutput { return linesOutput{Error: e} }))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "lookup_geoip",
 		Description: "Resolve IP addresses to ISO 3166-1 alpha-2 country codes using a bundled MaxMind GeoLite2-Country database. Pure offline, no external network calls.",
 	}, handleLookupGeoip)

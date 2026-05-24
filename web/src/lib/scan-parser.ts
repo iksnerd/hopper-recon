@@ -351,3 +351,27 @@ export function parseCdn(apiResult: unknown): CdnResult {
   }
   return { entries }
 }
+
+// --- resolve_mutations ---
+
+export interface ResolvedMutEntry {
+  host: string
+  a: string[]
+}
+
+export interface ResolvedMutResult {
+  entries: ResolvedMutEntry[]
+}
+
+// parseMutationResolve converts the resolve_mutations scan results into a flat
+// list of hosts that resolved, each with their A records.
+export function parseMutationResolve(apiResult: unknown): ResolvedMutResult {
+  const raw = apiResult as { results: Array<{ host?: string; a?: string[] }> }
+  const entries: ResolvedMutEntry[] = []
+  for (const r of raw?.results ?? []) {
+    if (r.host && r.a && r.a.length > 0) {
+      entries.push({ host: r.host, a: r.a })
+    }
+  }
+  return { entries }
+}

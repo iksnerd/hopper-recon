@@ -10,8 +10,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult,
+  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
@@ -64,6 +64,9 @@ interface ScanState {
   cdn: CdnResult | null
   urls: UrlsResult | null
   alterx: AlterxResult | null
+  resolvedMuts: ResolvedMutResult | null
+  resolveMutState: "idle" | "loading" | "done" | "error"
+  resolveMutError: string | null
   errors: Partial<Record<ToolId, string>>
 }
 
@@ -97,7 +100,7 @@ function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
   return ""
 }
 
-async function runTool(tool: ToolId, target: string) {
+async function runTool(tool: ToolId | "resolve_mutations", target: string) {
   const res = await fetch("/api/scan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -161,7 +164,8 @@ function DashboardInner() {
       states: { ...EMPTY_STATES },
       startedAt: { passive_subdomains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
       durations: {},
-      subdomains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null, errors: {},
+      subdomains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null,
+      resolvedMuts: null, resolveMutState: "idle", resolveMutError: null, errors: {},
     }
     setScan(initial)
 
@@ -200,6 +204,18 @@ function DashboardInner() {
             }
           })
         })
+    }
+  }
+
+  async function resolveMutations() {
+    if (!scan?.target) return
+    setScan((prev) => prev ? { ...prev, resolveMutState: "loading", resolvedMuts: null, resolveMutError: null } : prev)
+    try {
+      const data = await runTool("resolve_mutations", scan.target)
+      setScan((prev) => prev ? { ...prev, resolveMutState: "done", resolvedMuts: parseMutationResolve(data) } : prev)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      setScan((prev) => prev ? { ...prev, resolveMutState: "error", resolveMutError: msg } : prev)
     }
   }
 
@@ -744,9 +760,24 @@ function DashboardInner() {
                         </p>
                       ) : (
                         <>
-                          <p className="text-micro text-muted-foreground-3 mb-3">
-                            unverified candidates — resolve with dnsx to confirm existence
-                          </p>
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-micro text-muted-foreground-3">
+                              unverified candidates — resolve with dnsx to confirm existence
+                            </p>
+                            {scan.resolveMutState === "idle" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-micro font-mono rounded-none"
+                                onClick={() => void resolveMutations()}
+                              >
+                                resolve →
+                              </Button>
+                            )}
+                            {scan.resolveMutState === "loading" && (
+                              <span className="text-micro font-mono text-muted-foreground-3 animate-pulse">resolving…</span>
+                            )}
+                          </div>
                           <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
                             {scan.alterx.entries.map((e, i) => (
                               <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
@@ -759,6 +790,31 @@ function DashboardInner() {
                     </Panel>
                   )}
                 </ToolPanel>
+                {scan.resolveMutState === "error" && scan.resolveMutError && (
+                  <p className="text-micro text-destructive mt-2 font-mono">{scan.resolveMutError}</p>
+                )}
+                {(scan.resolveMutState === "done" || scan.resolveMutState === "loading") && scan.resolvedMuts && (
+                  <Panel
+                    label={`// LIVE MUTATIONS [${scan.resolvedMuts.entries.length}]`}
+                    action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
+                    className="mt-4"
+                  >
+                    {scan.resolvedMuts.entries.length === 0 ? (
+                      <p className="text-body text-muted-foreground py-6">
+                        no mutation candidates resolved — none of the generated names exist in DNS
+                      </p>
+                    ) : (
+                      <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                        {scan.resolvedMuts.entries.map((e, i) => (
+                          <div key={`${e.host}-${i}`} className="group flex items-center gap-3 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                            <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
+                            <span className="font-mono text-micro text-muted-foreground-3 shrink-0">{e.a[0]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Panel>
+                )}
               </TabsContent>
             </Tabs>
               </div>

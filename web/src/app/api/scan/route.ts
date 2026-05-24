@@ -8,6 +8,7 @@ const VALID_TOOLS = [
   "check_cdn",
   "find_urls",
   "expand_subdomains",
+  "resolve_mutations",
 ] as const
 type Tool = (typeof VALID_TOOLS)[number]
 

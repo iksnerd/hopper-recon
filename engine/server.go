@@ -59,6 +59,8 @@ func runTool(ctx context.Context, tool, target string) ([]any, error) {
 			out[i] = f
 		}
 		return out, nil
+	case "resolve_mutations":
+		raw, err = RunResolveMutations(ctx, target)
 	default:
 		return nil, fmt.Errorf("unknown tool %q", tool)
 	}
