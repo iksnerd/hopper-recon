@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/components/query-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -48,9 +49,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistMono.variable} h-full antialiased dark`}
+      className={`${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col grid-bg"><QueryProvider>{children}</QueryProvider></body>
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider>
+          <QueryProvider>{children}</QueryProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
