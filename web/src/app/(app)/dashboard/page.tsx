@@ -35,6 +35,8 @@ import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Info } from "lucide-react"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 
 const TOOLS = [
@@ -724,6 +726,12 @@ function DashboardInner() {
               </TabsContent>
               {/* Subdomain mutations */}
               <TabsContent value="expand_subdomains" className="pt-4 mt-0">
+                <Alert className="mb-4 rounded-none border-border bg-card-inset">
+                  <Info className="size-4 text-muted-foreground" />
+                  <AlertDescription className="text-muted-foreground-2">
+                    Mutations are algorithmically generated variants of discovered subdomains — permutations like <span className="font-mono text-muted-foreground">dev-api</span>, <span className="font-mono text-muted-foreground">staging.api</span>, <span className="font-mono text-muted-foreground">api2</span>. They are unverified guesses; run a DNS resolve pass to find which ones actually exist.
+                  </AlertDescription>
+                </Alert>
                 <ToolPanel state={scan.states.expand_subdomains} error={scan.errors.expand_subdomains}>
                   {scan.alterx && (
                     <Panel

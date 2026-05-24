@@ -468,8 +468,9 @@ export default function DomainDetailPage() {
             {/* Subdomain mutations */}
             {alterx && alterx.entries.length > 0 && (
               <Panel label={`// MUTATION CANDIDATES [${alterx.entries.length}]`} variant="inset">
-                <p className="text-micro text-muted-foreground-3 mb-3">
-                  unverified — generated from known subdomains via alterx
+                <p className="inline-flex items-center text-micro text-muted-foreground-3 mb-3">
+                  unverified candidates — generated from known subdomains via alterx
+                  <InfoTooltip text="Algorithmically generated subdomain variants (permutations of known subdomains). Unverified — none are confirmed to exist until resolved via DNS." />
                 </p>
                 <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
                   {alterx.entries.map((e, i) => (
