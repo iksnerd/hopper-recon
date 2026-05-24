@@ -100,7 +100,7 @@ export function FindingsStrip(props: {
           {okCount > 0 && <span className="text-terminal-green-dim whitespace-nowrap">{okCount} OK</span>}
         </ReconCardAction>
       </ReconCardHeader>
-      <ul className="divide-y divide-card-hover">
+      <ul className="divide-y divide-border/30">
         {findings.map((f, i) => (
           <FindingRow key={i} finding={f} />
         ))}

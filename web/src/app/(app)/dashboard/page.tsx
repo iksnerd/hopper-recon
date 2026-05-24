@@ -259,7 +259,7 @@ function DashboardInner() {
         : "done"
 
   return (
-    <div className="min-h-screen font-mono text-foreground scanlines">
+    <div className="min-h-screen font-mono text-foreground">
       <PageHeader
         segments={[{ label: "DASHBOARD", href: "/dashboard" }, scan?.target]}
         right={
@@ -322,10 +322,10 @@ function DashboardInner() {
                 <span className="text-foreground tabular-nums">[{recentDomains.length}]</span>
               </ReconCardAction>
             </ReconCardHeader>
-            <ReconCardContent className="p-0">
-              <div className="flex flex-wrap">
+            <ReconCardContent className="p-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {recentDomains.slice(0, 8).map((d) => (
-                  <div key={d.domain} className="w-1/2 sm:w-1/3 lg:w-1/4 border-r border-b border-border last:border-r-0 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(3n)]:border-r-0 lg:[&:nth-child(3n)]:border-r lg:[&:nth-child(4n)]:border-r-0">
+                  <div key={d.domain}>
                     <RecentTargetTile
                       summary={d}
                       onScan={() => { setDomain(d.domain); void startScan(d.domain) }}
@@ -401,7 +401,7 @@ function DashboardInner() {
               <div className="min-w-0">
             {/* Results tabs */}
             <Tabs defaultValue="passive_subdomains">
-              <TabsList className="bg-card border border-border rounded-none w-full justify-start h-auto p-0 gap-0 overflow-x-auto">
+              <TabsList className="bg-card border-b border-border rounded-none w-full justify-start h-auto p-0 gap-0 overflow-x-auto">
                 {TOOLS.map(({ id, label }) => (
                   <TabsTrigger
                     key={id}
@@ -617,7 +617,7 @@ function DashboardInner() {
                             />
                           )}
                           {scan.http.jarm_hash && (
-                            <TableRow className="border-b border-card-hover hover:bg-transparent">
+                            <TableRow className="border-none hover:bg-transparent">
                               <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">
                                 <span className="inline-flex items-center gap-0.5">
                                   JARM
@@ -634,7 +634,7 @@ function DashboardInner() {
                           )}
                         </TableBody>
                       </Table>
-                      <div className="border-t border-border pt-3">
+                      <div className="pt-4">
                         <div className="text-micro text-muted-foreground mb-2">TECHNOLOGIES</div>
                         <div className="flex flex-wrap gap-1">
                           {scan.http.tech.length > 0
@@ -643,7 +643,7 @@ function DashboardInner() {
                         </div>
                       </div>
                       {scan.http.cpe.length > 0 && (
-                        <div className="border-t border-border pt-3 mt-3">
+                        <div className="pt-4 mt-1">
                           <div className="text-micro text-muted-foreground mb-2 inline-flex items-center gap-0.5">
                             CPE [{scan.http.cpe.length}]
                             <InfoTooltip text="Common Platform Enumeration — structured identifiers for software and hardware. Use these to look up known CVEs in the NVD or other vulnerability databases." />
@@ -654,7 +654,7 @@ function DashboardInner() {
                         </div>
                       )}
                       {(scan.http.a.length > 0 || scan.http.aaaa.length > 0) && (
-                        <div className="border-t border-border pt-3 mt-3">
+                        <div className="pt-4 mt-1">
                           <div className="text-micro text-muted-foreground mb-2">
                             IPS [{scan.http.a.length + scan.http.aaaa.length}]
                           </div>
@@ -727,7 +727,7 @@ function DashboardInner() {
                         {scan.urls.entries.length === 0 ? (
                           <p className="text-body text-muted-foreground py-6">no historical URLs found in passive sources</p>
                         ) : (
-                          <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                          <div className="space-y-px max-h-[480px] overflow-y-auto bg-card-inset">
                             {scan.urls.entries.map((e, i) => (
                               <div key={`${e.url}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
                                 <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.url}</span>
@@ -779,7 +779,7 @@ function DashboardInner() {
                               <span className="text-micro font-mono text-muted-foreground-3 animate-pulse">resolving…</span>
                             )}
                           </div>
-                          <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                          <div className="space-y-px max-h-[480px] overflow-y-auto bg-card-inset">
                             {scan.alterx.entries.map((e, i) => (
                               <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
                                 <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.word}</span>
@@ -805,7 +805,7 @@ function DashboardInner() {
                         no mutation candidates resolved — none of the generated names exist in DNS
                       </p>
                     ) : (
-                      <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
+                      <div className="space-y-px max-h-[480px] overflow-y-auto bg-card-inset">
                         {scan.resolvedMuts.entries.map((e, i) => (
                           <div key={`${e.host}-${i}`} className="group flex items-center gap-3 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
                             <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
@@ -925,7 +925,7 @@ function CertValidityBar({ tls }: { tls: NonNullable<ScanState["tls"]> }) {
 
 function DataRow({ label, value, mono, info }: { label: string; value: React.ReactNode; mono?: boolean; info?: string }) {
   return (
-    <TableRow className="border-b border-card-hover hover:bg-transparent">
+    <TableRow className="border-none hover:bg-transparent">
       <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">
         <span className="inline-flex items-center gap-0.5">
           {label}
@@ -939,7 +939,7 @@ function DataRow({ label, value, mono, info }: { label: string; value: React.Rea
 
 function ChipsRow({ label, items }: { label: string; items: string[] }) {
   return (
-    <TableRow className="border-b border-card-hover hover:bg-transparent">
+    <TableRow className="border-none hover:bg-transparent">
       <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">{label}</TableCell>
       <TableCell className="p-0 py-1.5 text-right">
         <div className="flex flex-wrap gap-1 justify-end">

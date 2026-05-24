@@ -77,7 +77,7 @@ export function OperatorWarningBanner({ className }: { className?: string }) {
   if (acked) return null
 
   return (
-    <ReconCard tone="danger" className={cn("rounded-none border-l-0 border-r-0 border-t-0", className)}>
+    <ReconCard tone="danger" className={cn("rounded-none border-x-0 border-t-0 border-b border-border", className)}>
       <ReconCardHeader>
         <ReconCardHeaderText>
           <ReconCardEyebrow className="text-destructive">[ AUTHORIZED-USE-ONLY ]</ReconCardEyebrow>

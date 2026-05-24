@@ -25,7 +25,7 @@ const SETTINGS = [
 
 export default function SettingsPage() {
   return (
-    <div className="min-h-screen font-mono text-foreground scanlines">
+    <div className="min-h-screen font-mono text-foreground">
       <PageHeader segments={["SETTINGS"]} />
 
       <div className="mx-auto max-w-5xl px-3 sm:px-6 py-4 sm:py-6 space-y-4">

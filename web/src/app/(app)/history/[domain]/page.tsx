@@ -162,7 +162,7 @@ export default function DomainDetailPage() {
   }, [ipKey])
 
   return (
-    <div className="min-h-screen font-mono text-foreground scanlines">
+    <div className="min-h-screen font-mono text-foreground">
       <PageHeader
         segments={[{ label: "HISTORY", href: "/history" }, domain]}
         right={

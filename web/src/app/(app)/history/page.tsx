@@ -167,7 +167,7 @@ export default function HistoryPage() {
   }, [ipKey])
 
   return (
-    <div className="min-h-screen font-mono text-foreground scanlines">
+    <div className="min-h-screen font-mono text-foreground">
       <PageHeader
         segments={["HISTORY"]}
         right={

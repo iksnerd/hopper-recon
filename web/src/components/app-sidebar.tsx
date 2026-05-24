@@ -11,12 +11,10 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from "@/components/ui/sidebar"
 
 const NAV: { label: string; href: string; icon: LucideIcon }[] = [
@@ -32,7 +30,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
+      <SidebarHeader className="px-4 py-3">
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
           <span className="size-2 bg-terminal-green shrink-0" aria-hidden />
           <span className="font-mono text-body uppercase tracking-widest font-bold text-foreground">
@@ -44,9 +42,6 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="font-mono text-micro text-muted-foreground-3 tracking-widest uppercase font-bold">
-            {"// nav"}
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV.map(({ label, href, icon: Icon }) => {
@@ -75,7 +70,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border px-4 py-2 group-data-[collapsible=icon]:hidden">
+      <SidebarFooter className="px-4 py-2 group-data-[collapsible=icon]:hidden">
         <div className="flex items-center justify-between">
           <span className="font-mono text-micro tracking-widest uppercase text-muted-foreground-3">v{pkg.version}</span>
           <button
@@ -88,7 +83,6 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
 
-      <SidebarRail />
     </Sidebar>
   )
 }

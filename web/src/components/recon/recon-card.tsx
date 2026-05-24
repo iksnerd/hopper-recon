@@ -45,7 +45,7 @@ export function ReconCardHeader({ className, flush, ...props }: ReconCardHeaderP
     <div
       data-slot="recon-card-header"
       className={cn(
-        "relative flex items-center gap-3 border-b border-border min-h-[40px] px-4 py-2",
+        "relative flex items-center gap-3 min-h-[40px] px-4 py-2",
         !flush && "before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] before:bg-terminal-green/70",
         className,
       )}
