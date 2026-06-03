@@ -40,8 +40,12 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Claude Code / Local dev tools
-.claude/
+# Claude Code / Local dev tools — skills/ is project-shared; everything else is local
+.claude/settings.json
+.claude/settings.local.json
+.claude/projects/
+.claude/todos/
+.claude/ide/
 .agents/
 .gemini/
 .mcp.json
