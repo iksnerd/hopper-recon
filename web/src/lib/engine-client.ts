@@ -7,6 +7,14 @@
 // port the compose engine binds for local MCP/dashboard clients.
 import type { GeoipRow, ScanRow } from "./db"
 
+export interface EngineConfig {
+  version: string
+  has_scope: boolean
+  has_auth: boolean
+  cooldown_s: number
+  has_geo_db: boolean
+}
+
 const baseUrl = (process.env.ENGINE_URL ?? "http://127.0.0.1:9119").replace(/\/$/, "")
 
 interface ScanRunResponse {

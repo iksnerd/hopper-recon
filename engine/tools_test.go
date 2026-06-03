@@ -317,8 +317,8 @@ func TestLookupGeoip_MalformedIP(t *testing.T) {
 }
 
 func TestLookupGeoip_NilReader(t *testing.T) {
-	// Without the mmdb file (absent in CI), loadGeoipReader returns (nil, nil).
-	// LookupGeoip must handle a nil reader gracefully.
+	// Without the mmdb file (absent in CI), loadGeoipReader returns a not-exist
+	// error; LookupGeoip must treat that as empty results, not an error.
 	results, err := LookupGeoip([]string{"8.8.8.8"})
 	if err != nil {
 		t.Errorf("nil reader: unexpected error %v", err)

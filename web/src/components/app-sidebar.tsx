@@ -15,6 +15,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar"
 
 const NAV: { label: string; href: string; icon: LucideIcon }[] = [
@@ -74,15 +75,16 @@ export function AppSidebar() {
         <div className="flex items-center justify-between">
           <span className="font-mono text-micro tracking-widest uppercase text-muted-foreground-3">v{pkg.version}</span>
           <button
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme((resolvedTheme ?? "dark") === "dark" ? "light" : "dark")}
             className="text-muted-foreground-3 hover:text-terminal-green transition-colors"
             aria-label="Toggle theme"
           >
-            {resolvedTheme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+            {(resolvedTheme ?? "dark") === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
           </button>
         </div>
       </SidebarFooter>
 
+      <SidebarRail />
     </Sidebar>
   )
 }

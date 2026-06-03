@@ -28,18 +28,8 @@ import { DataChip } from "@/components/recon/data-chip"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { GeoGlobe } from "@/components/recon/geo-globe"
-
-function certDaysCls(days: number) {
-  if (days < 14) return "text-destructive"
-  if (days < 30) return "text-muted-foreground-2"
-  return "text-terminal-green"
-}
-
-function httpStatusCls(code: number) {
-  if (code < 300) return "text-terminal-green"
-  if (code < 400) return "text-muted-foreground-2"
-  return "text-destructive"
-}
+import { InfoTooltip } from "@/components/recon/info-tooltip"
+import { certDaysCls, httpStatusCls } from "@/lib/recon-display"
 
 function elapsed(started: string, completed: string | null) {
   if (!completed) return "—"
@@ -309,7 +299,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
         <div className="hidden md:flex items-center gap-0 text-body divide-x divide-border">
           {subdomains && <Stat label="SUBS" value={subdomains.findings.length.toString()} />}
           {dns && <Stat label="IPS" value={dns.a.length.toString()} />}
-          {tls && <Stat label="CERT" value={`${tls.daysLeft}d`} cls={certDaysCls(tls.daysLeft)} />}
+          {tls && <Stat label="CERT EXPIRY" value={`${tls.daysLeft}d`} cls={certDaysCls(tls.daysLeft)} title={tls.daysLeft < 14 ? "Expires soon — renew immediately" : tls.daysLeft < 30 ? "Expiring within 30 days — schedule renewal" : "Certificate is valid"} />}
           {http && <Stat label="HTTP" value={`[${http.status_code}]`} cls={httpStatusCls(http.status_code)} />}
         </div>
         {http?.tech && http.tech.length > 0 && (
@@ -444,9 +434,9 @@ function DomainCard({ data, open, onToggle, onRescan }: {
                 )}
                 <MiniTable rows={[
                   { label: "STATUS", value: `[${dns.status_code}]` },
-                  { label: "TTL",    value: `${dns.ttl}s` },
-                  ...(dns.cdn ? [{ label: "CDN", value: dns.cdn }] : []),
-                  ...(dns.asn ? [{ label: "ASN", value: dns.asn }] : []),
+                  { label: "TTL",    value: `${dns.ttl}s`, info: "Time To Live — how long (in seconds) resolvers may cache this DNS record before re-querying." },
+                  ...(dns.cdn ? [{ label: "CDN", value: dns.cdn, info: "CDN provider identified from DNS response patterns by dnsx." }] : []),
+                  ...(dns.asn ? [{ label: "ASN", value: dns.asn, info: "Autonomous System Number — identifies the network operator controlling the resolved IP block." }] : []),
                 ]} />
                 {dns.a.length > 0 && <RecordRow label="A" items={dns.a} />}
                 {dns.ns.length > 0 && <RecordRow label="NS" items={dns.ns} />}
@@ -587,13 +577,18 @@ function CertBar({ tls }: { tls: TlsResult }) {
   )
 }
 
-function MiniTable({ rows }: { rows: { label: string; value: string }[] }) {
+function MiniTable({ rows }: { rows: { label: string; value: string; info?: string }[] }) {
   return (
     <Table className="text-data mt-2">
       <TableBody>
-        {rows.map(({ label, value }) => (
+        {rows.map(({ label, value, info }) => (
           <TableRow key={label} className="border-b border-card-hover hover:bg-transparent">
-            <TableCell className="p-0 py-1 pr-3 text-muted-foreground whitespace-nowrap align-top">{label}</TableCell>
+            <TableCell className="p-0 py-1 pr-3 text-muted-foreground whitespace-nowrap align-top">
+              <span className="inline-flex items-center gap-0.5">
+                {label}
+                {info && <InfoTooltip text={info} />}
+              </span>
+            </TableCell>
             <TableCell className="p-0 py-1 text-muted-foreground-2 text-right whitespace-normal break-all max-w-[160px]">{value}</TableCell>
           </TableRow>
         ))}
@@ -602,9 +597,9 @@ function MiniTable({ rows }: { rows: { label: string; value: string }[] }) {
   )
 }
 
-function Stat({ label, value, cls = "text-foreground" }: { label: string; value: string; cls?: string }) {
+function Stat({ label, value, cls = "text-foreground", title }: { label: string; value: string; cls?: string; title?: string }) {
   return (
-    <div className="px-3 text-center first:pl-0 last:pr-0">
+    <div className="px-3 text-center first:pl-0 last:pr-0" title={title}>
       <div className="text-micro text-muted-foreground tracking-widest uppercase">{label}</div>
       <div className={`text-body font-bold tabular-nums leading-tight ${cls}`}>{value}</div>
     </div>

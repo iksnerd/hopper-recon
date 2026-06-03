@@ -208,7 +208,7 @@ func (db *DB) ListScans(domain string, limit int) ([]ScanRow, error) {
 		err  error
 	)
 	if domain != "" {
-		rows, err = db.Query("SELECT id, domain, tool, status, results_json, error, started_at, completed_at, http_status, cert_expiry, tech_stack FROM scans WHERE domain=? ORDER BY started_at DESC", domain)
+		rows, err = db.Query("SELECT id, domain, tool, status, results_json, error, started_at, completed_at, http_status, cert_expiry, tech_stack FROM scans WHERE domain=? ORDER BY started_at DESC LIMIT ?", domain, limit)
 	} else {
 		rows, err = db.Query("SELECT id, domain, tool, status, results_json, error, started_at, completed_at, http_status, cert_expiry, tech_stack FROM scans ORDER BY started_at DESC LIMIT ?", limit)
 	}

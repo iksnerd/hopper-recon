@@ -16,8 +16,8 @@ import (
 
 // Version is single-sourced here so MCP server metadata (main.go) and the
 // outbound httpx User-Agent (below) agree at build time. Override at link
-// time with `-ldflags "-X main.Version=v0.3.2"` for tagged releases.
-var Version = "v0.3.2"
+// time with `-ldflags "-X main.Version=v0.3.3"` for tagged releases.
+var Version = "v0.3.3"
 
 const geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
 
@@ -36,6 +36,7 @@ var (
 func loadGeoipReader() (*geoip2.Reader, error) {
 	geoipOnce.Do(func() {
 		if _, statErr := os.Stat(geoipDbPath); statErr != nil {
+			geoipErr = statErr
 			return
 		}
 		geoipReader, geoipErr = geoip2.Open(geoipDbPath)
@@ -138,16 +139,29 @@ func RunDnsx(ctx context.Context, target string) ([]string, error) {
 	}
 	existing, _ := apex["txt"].([]any)
 
-	// Merge _dmarc TXT records.
-	dmarcLines, _ := execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, "_dmarc."+target+"\n")
-	existing = mergeTxtLines(existing, dmarcLines)
+	// Run DMARC and DKIM queries concurrently — they're independent of each
+	// other and of the apex result, so no ordering constraint.
+	var (
+		dmarcLines []string
+		dkimLines  []string
+		wg         sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		dmarcLines, _ = execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, "_dmarc."+target+"\n")
+	}()
+	go func() {
+		defer wg.Done()
+		var sb strings.Builder
+		for _, sel := range dkimSelectors {
+			fmt.Fprintf(&sb, "%s._domainkey.%s\n", sel, target)
+		}
+		dkimLines, _ = execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, sb.String())
+	}()
+	wg.Wait()
 
-	// Merge DKIM selector TXT records (one batch, all selectors via stdin).
-	var dkimSB strings.Builder
-	for _, sel := range dkimSelectors {
-		fmt.Fprintf(&dkimSB, "%s._domainkey.%s\n", sel, target)
-	}
-	dkimLines, _ := execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, dkimSB.String())
+	existing = mergeTxtLines(existing, dmarcLines)
 	existing = mergeTxtLines(existing, dkimLines)
 
 	apex["txt"] = existing
@@ -265,10 +279,14 @@ type GeoipEntry struct {
 }
 
 // LookupGeoip resolves the given IPs to country codes from the local mmdb.
-// Missing mmdb or unresolvable IPs simply produce no entry — never an error.
+// A missing mmdb produces no entries (not an error); a corrupt or unreadable
+// mmdb propagates the error so callers can surface it.
 func LookupGeoip(ips []string) ([]GeoipEntry, error) {
 	reader, err := loadGeoipReader()
 	if err != nil {
+		if os.IsNotExist(err) {
+			return []GeoipEntry{}, nil
+		}
 		return nil, err
 	}
 	results := []GeoipEntry{}

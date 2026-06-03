@@ -1,26 +1,10 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { X } from "lucide-react"
-import {
-  ReconCard,
-  ReconCardHeader,
-  ReconCardHeaderText,
-  ReconCardEyebrow,
-  ReconCardTitle,
-  ReconCardAction,
-  ReconCardContent,
-} from "@/components/recon/recon-card"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-
-interface EngineConfig {
-  version: string
-  has_scope: boolean
-  has_auth: boolean
-  cooldown_s: number
-  has_geo_db: boolean
-}
+import type { EngineConfig } from "@/lib/engine-client"
 
 const ACK_KEY = "hopper-recon:operator-warning-ack-v1"
 
@@ -78,32 +62,31 @@ export function OperatorWarningBanner({ className }: { className?: string }) {
   if (acked) return null
 
   return (
-    <ReconCard tone="danger" className={cn("rounded-none border-x-0 border-t-0 border-b border-border", className)}>
-      <ReconCardHeader>
-        <ReconCardHeaderText>
-          <ReconCardEyebrow className="text-destructive">[ AUTHORIZED-USE-ONLY ]</ReconCardEyebrow>
-          <ReconCardTitle>Operator advisory — no scope filter, no authentication</ReconCardTitle>
-        </ReconCardHeaderText>
-        <ReconCardAction>
-          <Button type="button" variant="ghost" size="sm" aria-label="Dismiss advisory" onClick={dismiss}>
-            <X className="size-4" />
-            <span className="text-micro">[ack]</span>
-          </Button>
-        </ReconCardAction>
-      </ReconCardHeader>
-      <ReconCardContent className="text-data text-muted-foreground space-y-2">
-        <p>
-          This engine is running with <span className="text-foreground">no scope filter</span> and{" "}
-          <span className="text-foreground">no authentication</span>. Anyone reaching this UI or the engine
-          on <code className="text-foreground">/mcp</code> can scan any domain you point them at.
-        </p>
-        <p>
-          Operate only against assets you own or have written authorization to test. To narrow scope,
-          set <code className="text-foreground">HOPPER_ALLOWED_DOMAINS</code> on the engine
-          (comma-separated apex list) and restart. Engine version{" "}
-          <span className="text-foreground tabular-nums">{config.version}</span>.
-        </p>
-      </ReconCardContent>
-    </ReconCard>
+    <div
+      role="alert"
+      className={cn(
+        "flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 border-b border-border bg-card text-micro font-mono",
+        className,
+      )}
+    >
+      <span className="text-destructive font-bold tracking-widest shrink-0">[ UNSCOPED ]</span>
+      <span className="text-muted-foreground flex-1 min-w-0 truncate">
+        No scope filter or auth — anyone can scan any domain.{" "}
+        <Link
+          href="/settings"
+          className="text-foreground hover:text-terminal-green underline underline-offset-2 transition-colors"
+        >
+          Configure in Settings →
+        </Link>
+      </span>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss advisory"
+        className="shrink-0 text-muted-foreground-3 hover:text-foreground transition-colors"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
   )
 }

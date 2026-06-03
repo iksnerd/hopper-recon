@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           (long tables, recharts SVGs, JARM hashes). Without it a flex child
           defaults to min-content and the page can push past the viewport
           on the right. */}
-      <SidebarInset className="bg-background grid-bg min-w-0">
+      <SidebarInset className="bg-background min-w-0">
         <OperatorWarningBanner />
         {children}
       </SidebarInset>

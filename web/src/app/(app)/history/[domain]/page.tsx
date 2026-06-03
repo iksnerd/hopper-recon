@@ -30,6 +30,7 @@ import { FindingsStrip } from "@/components/recon/findings-strip"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { GeoGlobe } from "@/components/recon/geo-globe"
+import { certDaysCls, httpStatusCls } from "@/lib/recon-display"
 
 // Build a DomainSummary from raw rows (DESC order — first seen per tool = most recent)
 function buildSummary(rows: ScanRow[], domain: string): DomainSummary {
@@ -65,18 +66,6 @@ function buildTimeline(rows: ScanRow[]) {
       certDays: v.certDays,
       httpStatus: v.httpStatus,
     }))
-}
-
-function certDaysCls(days: number) {
-  if (days < 14) return "text-destructive"
-  if (days < 30) return "text-muted-foreground-2"
-  return "text-terminal-green"
-}
-
-function httpStatusCls(code: number) {
-  if (code < 300) return "text-terminal-green"
-  if (code < 400) return "text-muted-foreground-2"
-  return "text-destructive"
 }
 
 function elapsed(started: string, completed: string | null) {

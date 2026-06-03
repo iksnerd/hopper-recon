@@ -4,14 +4,7 @@ import * as React from "react"
 import { Panel } from "@/components/recon/panel"
 import { PageHeader } from "@/components/recon/page-header"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
-
-interface EngineConfig {
-  version: string
-  has_scope: boolean
-  has_auth: boolean
-  cooldown_s: number
-  has_geo_db?: boolean
-}
+import type { EngineConfig } from "@/lib/engine-client"
 
 function StatusBadge({ ok, okLabel, failLabel }: { ok: boolean; okLabel: string; failLabel: string }) {
   return (
@@ -35,10 +28,12 @@ export default function SettingsPage() {
   const [err, setErr] = React.useState(false)
 
   React.useEffect(() => {
-    fetch("/api/config", { cache: "no-store" })
+    const ac = new AbortController()
+    fetch("/api/config", { cache: "no-store", signal: ac.signal })
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((d: EngineConfig) => setConfig(d))
-      .catch(() => setErr(true))
+      .catch((e: unknown) => { if ((e as Error)?.name !== "AbortError") setErr(true) })
+    return () => ac.abort()
   }, [])
 
   return (
@@ -67,38 +62,36 @@ export default function SettingsPage() {
                   <StatusBadge ok={config.has_auth} okLabel="enabled" failLabel="disabled — anyone can scan" />
                 </Row>
                 <Row label="COOLDOWN">{config.cooldown_s}s between scans per target</Row>
-                {config.has_geo_db !== undefined && (
-                  <Row label="GEO DB">
-                    <StatusBadge
-                      ok={config.has_geo_db}
-                      okLabel="loaded — GeoLite2-Country.mmdb found"
-                      failLabel="missing — geo lookups return no data"
-                    />
-                    {!config.has_geo_db && (
-                      <span className="block text-muted-foreground-3 mt-0.5">
-                        place GeoLite2-Country.mmdb at ~/.config/hopper-recon/ and restart
-                      </span>
-                    )}
-                  </Row>
-                )}
+                <Row label="GEO DB">
+                  <StatusBadge
+                    ok={config.has_geo_db}
+                    okLabel="loaded — GeoLite2-Country.mmdb found"
+                    failLabel="missing — geo lookups return no data"
+                  />
+                  {!config.has_geo_db && (
+                    <span className="block text-muted-foreground-3 mt-0.5">
+                      place GeoLite2-Country.mmdb at ~/.config/hopper-recon/ and restart
+                    </span>
+                  )}
+                </Row>
               </TableBody>
             </Table>
           )}
         </Panel>
 
         {/* Scan tools */}
-        <Panel label="// SCAN TOOLS">
+        <Panel label="// WHAT EACH SCAN DOES">
           <Table className="text-body">
             <TableBody>
-              <Row label="passive_subdomains">subfinder · osint passive enumeration</Row>
-              <Row label="resolve_dns">dnsx · A / AAAA / NS / MX / TXT records + email security check</Row>
-              <Row label="fetch_tls_cert">tlsx · certificate chain, expiry, cipher, SANs</Row>
-              <Row label="probe_http">httpx · HTTP probe — status, server, tech stack, JARM, CPE</Row>
-              <Row label="check_cdn">cdncheck · CDN / WAF / cloud attribution per resolved IP</Row>
-              <Row label="find_urls">urlfinder · historical URLs from Wayback Machine + AlienVault</Row>
-              <Row label="expand_subdomains">alterx · permutation-based subdomain mutation candidates</Row>
-              <Row label="resolve_mutations">dnsx (on-demand) · DNS-verify mutation candidates from alterx</Row>
-              <Row label="lookup_geoip">MaxMind GeoLite2 · IP → country (enrichment, not a scan tab)</Row>
+              <Row label="SUBDOMAINS">Finds all subdomains (e.g. api.example.com, staging.example.com) using public OSINT sources — no requests to the target.</Row>
+              <Row label="DNS">Resolves the domain to its IP addresses and reads DNS records (A, NS, MX, TXT). Also checks for SPF, DMARC, and DKIM email-security records.</Row>
+              <Row label="TLS CERTIFICATE">Reads the public TLS certificate — who issued it, when it expires, which domains it covers, and what cipher the server uses.</Row>
+              <Row label="HTTP">Makes one HTTP request to detect the server software, page title, tech stack, and response time. Identifies itself with a hopper-recon User-Agent.</Row>
+              <Row label="CDN / WAF">Checks which CDN, cloud provider, or Web Application Firewall is in front of each resolved IP — e.g. Cloudflare, AWS, Fastly.</Row>
+              <Row label="HISTORICAL URLS">Pulls URLs crawled by the Wayback Machine and AlienVault. Shows what paths and files have been publicly indexed — no requests to the target.</Row>
+              <Row label="SUBDOMAIN MUTATIONS">Generates likely subdomain variants (dev-api, staging-api, api2…) by permuting known subdomains. These are unverified guesses — use DNS Verify to confirm which are live.</Row>
+              <Row label="DNS VERIFY (MUTATIONS)">Takes the mutation candidates and checks each one in DNS. Returns only the ones with a real A record — i.e. subdomains that actually exist.</Row>
+              <Row label="GEO LOOKUP">Maps IP addresses to countries using a local MaxMind database. Used automatically when displaying the globe on the history page.</Row>
             </TableBody>
           </Table>
         </Panel>

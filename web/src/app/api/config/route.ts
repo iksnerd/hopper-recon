@@ -1,14 +1,8 @@
 // Proxies the engine's /config endpoint. Used by the first-boot warning
 // banner to decide whether to nag operators about running unauth + no-scope.
-const baseUrl = (process.env.ENGINE_URL ?? "http://127.0.0.1:9119").replace(/\/$/, "")
+import type { EngineConfig } from "@/lib/engine-client"
 
-interface EngineConfig {
-  version: string
-  has_scope: boolean
-  has_auth: boolean
-  cooldown_s: number
-  has_geo_db: boolean
-}
+const baseUrl = (process.env.ENGINE_URL ?? "http://127.0.0.1:9119").replace(/\/$/, "")
 
 export async function GET() {
   try {

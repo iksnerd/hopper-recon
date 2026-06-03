@@ -43,10 +43,10 @@ function deriveFindings({ subs, dns, tls, http }: {
 
   if (dns) {
     const sec = dns.securityTxt
-    if (!sec.spf)   out.push({ severity: "issue", source: "DNS", message: "No SPF record — email spoofing risk" })
-    else            out.push({ severity: "ok",    source: "DNS", message: "SPF policy present" })
-    if (!sec.dmarc) out.push({ severity: "issue", source: "DNS", message: "No DMARC record — no enforcement policy" })
-    if (!sec.dkim)  out.push({ severity: "info",  source: "DNS", message: "No DKIM signature found" })
+    if (!sec.spf)   out.push({ severity: "issue", source: "DNS", message: "No SPF record — anyone can send email pretending to be this domain" })
+    else            out.push({ severity: "ok",    source: "DNS", message: "SPF present — unauthorised senders are flagged" })
+    if (!sec.dmarc) out.push({ severity: "issue", source: "DNS", message: "No DMARC — spoofed emails reach inboxes even with SPF configured" })
+    if (!sec.dkim)  out.push({ severity: "info",  source: "DNS", message: "No DKIM — recipients can't verify emails were sent unmodified" })
   }
 
   if (http) {
@@ -55,11 +55,11 @@ function deriveFindings({ subs, dns, tls, http }: {
       const firstHasHttps = (http.url ?? "").startsWith("https")
       const finalHasHttps = (http.final_url ?? "").startsWith("https")
       if (firstHasHttps && !finalHasHttps) {
-        out.push({ severity: "issue", source: "HTTP", message: "HTTPS → HTTP downgrade in redirect chain" })
+        out.push({ severity: "issue", source: "HTTP", message: "Insecure redirect — HTTPS visitors are sent to plain HTTP, exposing traffic" })
       }
     }
     if (http.status_code >= 500) {
-      out.push({ severity: "issue", source: "HTTP", message: `Origin returns ${http.status_code}` })
+      out.push({ severity: "issue", source: "HTTP", message: `Server error ${http.status_code} — origin is returning an error to all visitors` })
     }
   }
 
@@ -100,7 +100,7 @@ export function FindingsStrip(props: {
           {okCount > 0 && <span className="text-terminal-green-dim whitespace-nowrap">{okCount} OK</span>}
         </ReconCardAction>
       </ReconCardHeader>
-      <ul className="divide-y divide-border/30">
+      <ul className="divide-y divide-border/30 border-t border-border">
         {findings.map((f, i) => (
           <FindingRow key={i} finding={f} />
         ))}

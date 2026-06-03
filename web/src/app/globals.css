@@ -149,10 +149,6 @@
   }
 }
 
-.grid-bg {
-  background-color: var(--background);
-}
-
 /* Typography scale — terminal-monospace, role-based.
    Mirrors Palantir's data-density tier: large enough to read comfortably,
    tight enough to pack rich tables. */

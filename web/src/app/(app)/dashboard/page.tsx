@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Info } from "lucide-react"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
+import { certDaysLabel, httpStatusBracket } from "@/lib/recon-display"
 
 const TOOLS = [
   { id: "passive_subdomains", label: "SUBDOMAINS" },
@@ -116,17 +117,6 @@ async function runTool(tool: ToolId | "resolve_mutations", target: string) {
   return data
 }
 
-function certDaysLabel(days: number): { label: string; cls: string } {
-  if (days < 14) return { label: `${days}d`, cls: "text-destructive" }
-  if (days < 30) return { label: `${days}d`, cls: "text-muted-foreground-2" }
-  return { label: `${days}d`, cls: "text-terminal-green" }
-}
-
-function httpStatusBracket(code: number): { label: string; cls: string } {
-  if (code < 300) return { label: `[${code}]`, cls: "text-terminal-green" }
-  if (code < 400) return { label: `[${code}]`, cls: "text-muted-foreground-2" }
-  return { label: `[${code}]`, cls: "text-destructive" }
-}
 
 export default function DashboardPage() {
   return (
@@ -533,9 +523,9 @@ function DashboardInner() {
 
                     <Panel label={"// EMAIL SECURITY (TXT)"} className="mt-4">
                       <div className="flex flex-wrap gap-2">
-                        <SecurityTxtBadge label="SPF"   present={scan.dns.securityTxt.spf} />
-                        <SecurityTxtBadge label="DMARC" present={scan.dns.securityTxt.dmarc} />
-                        <SecurityTxtBadge label="DKIM"  present={scan.dns.securityTxt.dkim} />
+                        <SecurityTxtBadge label="SPF"   present={scan.dns.securityTxt.spf}   info="Sender Policy Framework — lists which mail servers are allowed to send email for this domain. Without it, anyone can spoof your address." />
+                        <SecurityTxtBadge label="DMARC" present={scan.dns.securityTxt.dmarc} info="Domain-based Message Authentication — tells receiving mail servers what to do with emails that fail SPF/DKIM (quarantine or reject). Required for enforcement." />
+                        <SecurityTxtBadge label="DKIM"  present={scan.dns.securityTxt.dkim}  info="DomainKeys Identified Mail — cryptographically signs outgoing emails so recipients can verify the message hasn't been tampered with in transit." />
                       </div>
                       {scan.dns.txt.length > 0 ? (
                         <div className="mt-3 space-y-1 max-h-[140px] overflow-y-auto">
@@ -620,8 +610,8 @@ function DashboardInner() {
                             <TableRow className="border-none hover:bg-transparent">
                               <TableCell className="p-0 py-1.5 pr-4 text-muted-foreground align-top whitespace-nowrap">
                                 <span className="inline-flex items-center gap-0.5">
-                                  JARM
-                                  <InfoTooltip text="62-character TLS fingerprint that identifies the server's TLS stack. Useful for detecting infrastructure changes, CDN bypass, or correlating servers across IPs." />
+                                  TLS FINGERPRINT
+                                  <InfoTooltip text="A unique fingerprint of the server's TLS configuration (JARM). If this changes between scans it means the server's infrastructure changed — useful for detecting CDN swaps or unexpected routing changes." />
                                 </span>
                               </TableCell>
                               <TableCell className="p-0 py-1.5 text-right">
@@ -645,11 +635,15 @@ function DashboardInner() {
                       {scan.http.cpe.length > 0 && (
                         <div className="pt-4 mt-1">
                           <div className="text-micro text-muted-foreground mb-2 inline-flex items-center gap-0.5">
-                            CPE [{scan.http.cpe.length}]
-                            <InfoTooltip text="Common Platform Enumeration — structured identifiers for software and hardware. Use these to look up known CVEs in the NVD or other vulnerability databases." />
+                            KNOWN SOFTWARE [{scan.http.cpe.length}]
+                            <InfoTooltip text="Detected software versions. Click any entry to search the NVD vulnerability database for known security issues affecting that version." />
                           </div>
                           <div className="flex flex-wrap gap-1">
-                            {scan.http.cpe.map((c) => <DataChip key={c} className="text-data">{c}</DataChip>)}
+                            {scan.http.cpe.map((c) => (
+                              <a key={c} href={`https://nvd.nist.gov/vuln/search/results?query=${encodeURIComponent(c)}&search_type=all`} target="_blank" rel="noopener noreferrer">
+                                <DataChip className="text-data hover:text-terminal-green hover:border-terminal-green/40 transition-colors cursor-pointer">{c} ↗</DataChip>
+                              </a>
+                            ))}
                           </div>
                         </div>
                       )}
@@ -950,14 +944,17 @@ function ChipsRow({ label, items }: { label: string; items: string[] }) {
   )
 }
 
-function SecurityTxtBadge({ label, present }: { label: string; present: boolean }) {
+function SecurityTxtBadge({ label, present, info }: { label: string; present: boolean; info?: string }) {
   return (
-    <Badge
-      variant="outline"
-      className={`rounded-none h-auto py-0.5 px-2 text-micro font-mono font-normal border-border ${present ? "bg-card-inset text-terminal-green" : "bg-card-inset text-destructive"}`}
-    >
-      {present ? "✓" : "✗"} {label}
-    </Badge>
+    <span className="inline-flex items-center gap-0.5">
+      <Badge
+        variant="outline"
+        className={`rounded-none h-auto py-0.5 px-2 text-micro font-mono font-normal border-border ${present ? "bg-card-inset text-terminal-green" : "bg-card-inset text-destructive"}`}
+      >
+        {present ? "✓" : "✗"} {label}
+      </Badge>
+      {info && <InfoTooltip text={info} />}
+    </span>
   )
 }
 

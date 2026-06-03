@@ -173,6 +173,20 @@ func clientIP(r *http.Request) string {
 	return strings.Trim(host, "[]")
 }
 
+// subfinderImpliedBy returns tool names whose subfinder cooldown should also
+// be checked when the given tool runs. expand_subdomains and resolve_mutations
+// both call RunSubfinder internally, so they share the passive_subdomains
+// cooldown in both directions.
+func subfinderImpliedBy(tool string) []string {
+	switch tool {
+	case "expand_subdomains", "resolve_mutations":
+		return []string{"passive_subdomains"}
+	case "passive_subdomains":
+		return []string{"expand_subdomains", "resolve_mutations"}
+	}
+	return nil
+}
+
 // handleRunScan: POST /scan {tool, target} → gate, run, persist, return
 // final state. One transaction from the client's perspective. If the client
 // disconnects before this returns, the boot sweep retires the pending row.
@@ -232,6 +246,16 @@ func handleRunScan(db *DB, policy *Policy) http.HandlerFunc {
 				writeError(w, http.StatusTooManyRequests, audit.Reason)
 				return
 			}
+			for _, implicit := range subfinderImpliedBy(req.Tool) {
+				if recent, rerr := db.RecentAllowedWithin(req.Target, implicit, cooldownSeconds); rerr == nil && recent {
+					audit.Decision = "blocked"
+					audit.Reason = fmt.Sprintf("cooldown: %s ran within %ds (%s calls subfinder internally)", implicit, cooldownSeconds, req.Tool)
+					_ = db.WriteAudit(audit)
+					w.Header().Set("Retry-After", strconv.Itoa(cooldownSeconds))
+					writeError(w, http.StatusTooManyRequests, audit.Reason)
+					return
+				}
+			}
 		}
 
 		audit.Decision = "allowed"
@@ -249,6 +273,10 @@ func handleRunScan(db *DB, policy *Policy) http.HandlerFunc {
 		results, runErr := toolRunner(ctx, req.Tool, req.Target)
 		if runErr != nil {
 			_ = db.FailScan(id, runErr.Error())
+			// 200 OK intentional: the HTTP request succeeded; the tool itself
+			// failed. Callers distinguish outcomes via the "status" field in
+			// the body ("completed" vs "failed"). A 5xx here would cause
+			// fetch wrappers to throw before the error message is readable.
 			writeJSON(w, http.StatusOK, scanResponse{
 				ID: id, Tool: req.Tool, Target: req.Target, Status: "failed", Error: runErr.Error(),
 			})
