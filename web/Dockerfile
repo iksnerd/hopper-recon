@@ -10,7 +10,8 @@ COPY package.json package-lock.json ./
 # rejects the linux container build when the lock was generated on macOS.
 # `npm install` is functionally equivalent here — same package.json, same
 # resolved versions, just permissive about the gap.
-RUN npm install --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --no-audit --no-fund
 
 # ── build ─────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS build

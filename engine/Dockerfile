@@ -1,26 +1,36 @@
+# syntax=docker/dockerfile:1.7
+
 # Build stage
 FROM golang:1.26.3-alpine AS builder
 
 WORKDIR /app
 
-# Install projectdiscovery safe passive tools
-RUN go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-RUN go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
-RUN go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest
-RUN go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest
-RUN go install github.com/projectdiscovery/urlfinder/cmd/urlfinder@latest
-RUN go install github.com/projectdiscovery/alterx/cmd/alterx@latest
+# Install projectdiscovery tools. Cache mounts keep the module download cache
+# and build artifact cache on the host between runs — first build is slow,
+# subsequent rebuilds skip the network entirely and reuse compiled objects.
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest && \
+    go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest && \
+    go install github.com/projectdiscovery/httpx/cmd/httpx@latest && \
+    go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
+    go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest && \
+    go install github.com/projectdiscovery/urlfinder/cmd/urlfinder@latest && \
+    go install github.com/projectdiscovery/alterx/cmd/alterx@latest
 
-# Copy go mod files
+# Separate layer: engine module downloads. Invalidated only when go.mod/go.sum
+# change, not when source changes.
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
 
-# Copy source code
+# Copy source and build. Cache mount means incremental recompilation — only
+# changed packages are recompiled.
 COPY . .
-
-# Build the engine — build the whole package, not main.go, so multi-file split compiles.
-RUN go build -o hopper-recon .
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -o hopper-recon .
 
 # Final stage
 FROM alpine:latest
