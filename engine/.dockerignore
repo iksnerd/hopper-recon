@@ -1,0 +1,5 @@
+hopper-recon
+*.test
+*.out
+.git
+*.log

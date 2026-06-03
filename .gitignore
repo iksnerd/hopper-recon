@@ -55,7 +55,7 @@ skills-lock.json
 # AI agent guides (dev-local, not part of the public API surface)
 GEMINI.md
 
-# Docker
+# Docker — root .dockerignore is generated; subdirectory ones are committed
 .dockerignore
 
 # Personal notes / runbooks — operator-private, not for the public repo
