@@ -1,6 +1,6 @@
 # hopper-recon release skill
 
-Cut a new release: bump versions, commit, tag, and push.
+Cut a new release: bump versions, commit, tag, push, and rebuild Docker images.
 
 ## How versioning works
 
@@ -27,7 +27,7 @@ Propose the bump to the user and confirm before proceeding if ambiguous.
 
 ## Steps
 
-1. **Confirm clean or staged state**
+### 1. Confirm clean or staged state
 
 ```bash
 git status --short
@@ -36,34 +36,45 @@ git diff --stat
 
 If there are unstaged changes the user hasn't mentioned, ask whether to include them.
 
-2. **Determine the new version** (see above). Ask the user if ambiguous.
+### 2. Determine the new version (see above). Ask if ambiguous.
 
-3. **Bump versions in both places**
+### 3. Bump versions in both places
 
-```bash
-# engine/tools.go — update both the ldflags comment and the var
-# web/package.json — update "version" field
+In `engine/tools.go`:
+```go
+// time with `-ldflags "-X main.Version=vX.Y.Z"` for tagged releases.
+var Version = "vX.Y.Z"
 ```
 
-4. **Run checks**
+In `web/package.json`:
+```json
+"version": "X.Y.Z",
+```
+
+Use sed rather than Edit (package.json may not have been read):
+```bash
+sed -i '' 's/"version": "OLD"/"version": "NEW"/' web/package.json
+```
+
+### 4. Run checks
 
 ```bash
 cd engine && go build ./... && go test ./...
-cd web    && npx tsc --noEmit && npm run lint
+cd ../web && npx tsc --noEmit && npm run lint
 ```
 
 Fix any failures before continuing.
 
-5. **Stage all changed files** (source files only — no screenshots, no build artefacts)
+### 5. Stage all changed files (source only — no screenshots, no build artefacts)
 
 ```bash
+cd ..  # back to repo root
 git add engine/ web/src/ web/package.json
-# check with: git status --short
+git status --short  # verify
 ```
 
-6. **Commit**
+### 6. Commit
 
-Use a structured message:
 ```
 chore: vX.Y.Z — <one-line summary of what changed>
 
@@ -74,38 +85,43 @@ Web:
 - <bullet per web change>
 ```
 
-7. **Tag** (annotated)
+### 7. Tag (annotated)
 
 ```bash
-git tag -a vX.Y.Z -m "vX.Y.Z — <same one-liner as commit>"
+git tag -a vX.Y.Z -m "vX.Y.Z — <same one-liner>"
 ```
 
-8. **Push branch and tag**
+### 8. Push branch and tag
 
 ```bash
 git push origin main --tags
 ```
 
-If any pre-existing tags are rejected as "already exists", that's fine — only the new tag matters.
+Pre-existing tags rejected as "already exists" are harmless — only the new tag matters.
 
-9. **Confirm** — show the user the tag URL:
+### 9. Rebuild Docker images
 
+The engine version string is baked at compile time; the web version appears in the sidebar footer. Both need a rebuild after a version bump.
+
+```bash
+docker compose build engine web
+docker compose up -d --force-recreate engine web
+```
+
+**Build performance notes (important):**
+- First build after a `go install` layer change is slow (~5–10 min) — Go modules are downloaded and cached via BuildKit cache mounts in `engine/Dockerfile`.
+- Subsequent builds are fast (~1 min) — module cache and build artifacts are reused.
+- The web build context should be small (< 5 MB) because `web/.dockerignore` excludes `node_modules` and `.next`. If a build is sending >100 MB of context, check that `.dockerignore` exists in `web/`.
+- Both Dockerfiles use `# syntax=docker/dockerfile:1.7` and `--mount=type=cache` — DOCKER_BUILDKIT=1 is the default in Docker Desktop but set it explicitly if builds are ignoring caches.
+
+### 10. Confirm
+
+Show the tag URL:
 ```
 https://github.com/iksnerd/hopper-recon/releases/tag/vX.Y.Z
 ```
 
-## After pushing
-
-Remind the user to rebuild the Docker image to pick up the engine version bump:
-
+And verify the running containers picked up the new version:
 ```bash
-docker compose build engine
-docker compose up -d --force-recreate engine
-```
-
-And if the web container is running from Docker (not `npm run dev`):
-
-```bash
-docker compose build web
-docker compose up -d --force-recreate web
+curl -s http://localhost:9119/config | grep version
 ```
