@@ -2,7 +2,7 @@
 
 Two-part project: a Next.js 16 web app in `web/` and a Go engine in `engine/` (containerised as `hopper-recon:latest`).
 
-## Architecture (v0.2)
+## Architecture (v0.3)
 
 The engine is a long-running HTTP server that owns SQLite at `/data/scans.db` and runs the recon binaries directly. The web app is a thin client over HTTP — it does **not** spawn Docker per scan and does **not** mount the Docker socket. A pair of Litestream sidecars handle DR.
 
@@ -48,7 +48,7 @@ When changing replica targets, only edit `litestream.yml` — the compose file d
 
 ## Next.js (web/)
 
-This is **not** the Next.js you know — version 16 has breaking changes from prior majors. Before writing code in `web/`, read the relevant guide in `web/node_modules/next/dist/docs/`. Heed deprecation notices.
+This is **not** the Next.js you know — version 16 has breaking changes from prior majors. Before writing code in `web/`, run `npm install` first, then read the relevant guide in `web/node_modules/next/dist/docs/`. Heed deprecation notices.
 
 **Run before declaring work done:**
 

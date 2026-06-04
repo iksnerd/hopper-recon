@@ -6,6 +6,71 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-06-04
+
+### Fixed
+
+- **`has_geo_db` always reported `true` when mmdb absent** — `loadGeoipReader` returned `(nil, nil)` on `os.Stat` failure (early return left `geoipErr` at zero value). Settings page showed "GeoLite2-Country.mmdb found" when no file existed. Fix: assign `geoipErr = statErr` before returning; `LookupGeoip` treats `ErrNotExist` as empty results (not an error) so lookup behavior is unchanged.
+- **`ListScans` ignored `limit` when `domain` filter was set** — domain-filter query had no `LIMIT` clause; the `limit` parameter was silently discarded. History page could return unbounded rows for heavily-scanned domains.
+- **`expand_subdomains` and `resolve_mutations` bypassed subfinder cooldown** — both tools call `RunSubfinder` internally but the cooldown gate only checked the outer tool name. Added bidirectional cooldown sharing: `expand_subdomains`/`resolve_mutations` block when `passive_subdomains` ran recently, and vice versa. Applied to both HTTP handler and MCP gate.
+- **Theme toggle showed wrong icon / set wrong theme before hydration** — `resolvedTheme` is `undefined` before next-themes hydrates; `undefined === "dark"` evaluated false so clicking always set theme to dark. Fixed with `resolvedTheme ?? "dark"` fallback matching `defaultTheme`.
+- **`FindingsStrip` header/body separator missing** — `ReconCardHeader` border-b removal left the FINDINGS header strip visually merged with the first finding row. Added `border-t border-border` to the `<ul>`.
+- **`has_geo_db` guard was dead code in settings page** — field declared optional (`has_geo_db?: boolean`) but engine always emits it; `!== undefined` was permanently true. Removed guard and made type required.
+- **`SidebarRail` removed accidentally** — sidebar collapse affordance (click-edge-to-collapse) was lost. Restored.
+- **Settings page fetch had no `AbortController`** — state update on unmounted component on slow connections. Added cleanup.
+- **`EngineConfig` type defined in three files with diverging optionality** — extracted to `web/src/lib/engine-client.ts` as single source; all consumers import from there.
+- **`grid-bg` CSS class was a no-op** — background-image removed in v0.3.2 but class still applied in layout. Removed class and CSS rule.
+- **`ListScans` domain query missing LIMIT** — see above.
+
+### Added
+
+- **CPE entries link to NVD** — each detected software version (e.g. `cpe:2.3:a:...`) is now a clickable link to `nvd.nist.gov/vuln/search` for that identifier. Renamed label from "CPE" to "KNOWN SOFTWARE".
+- **DNS email security tooltips** — SPF, DMARC, and DKIM badges now include plain-English popover explanations of what each protocol does and why it matters.
+- **`web/src/lib/recon-display.ts`** — shared `certDaysCls`, `certDaysLabel`, `httpStatusCls`, `httpStatusBracket` utilities replacing three independent copies across dashboard and history pages.
+- **`MiniTable` in history list now supports `info` tooltips** — DNS TTL, CDN, and ASN rows show the same tooltips as the history detail page.
+
+### Changed
+
+- **Operator warning banner collapsed to a single slim bar** — replaced full ReconCard (title + two paragraphs) with a one-line `[UNSCOPED]` strip. Page header is now immediately visible without scrolling.
+- **Findings strip messages rewritten with plain-language consequences** — "No SPF record — email spoofing risk" → "No SPF record — anyone can send email pretending to be this domain"; "No DMARC record — no enforcement policy" → "No DMARC — spoofed emails reach inboxes even with SPF configured"; etc.
+- **`JARM` renamed to `TLS FINGERPRINT`** with an updated tooltip explaining when a changed fingerprint signals infrastructure change.
+- **Settings "SCAN TOOLS" renamed to "WHAT EACH SCAN DOES"** with friendly labels (SUBDOMAINS, DNS, TLS CERTIFICATE…) and plain-English descriptions replacing internal tool names.
+- **`RunDnsx` DMARC and DKIM queries now run concurrently** — was sequential; wall-clock time for `resolve_dns` cut roughly in half on cold connections.
+
+### Documentation
+
+- **`engine/server.go`** — 200-on-tool-failure response is intentional; comment added explaining why.
+- **`.claude/skills/release`** — project release skill added documenting the version-bump and tag workflow.
+- **Dockerfile BuildKit cache mounts** — `--mount=type=cache` added to all `go install`, `go mod download`, and `go build` steps. `web/.dockerignore` and `engine/.dockerignore` added, cutting web build context from 1.4 GB to ~2 MB.
+
+## [0.3.2] — 2026-05-29
+
+### Added
+
+- **Light/dark theme toggle** — `next-themes` with `defaultTheme="dark"` and `attribute="class"`; toggle button in sidebar footer. `suppressHydrationWarning` on `<html>` prevents flash-of-wrong-theme on first load.
+- **Settings page live engine status** — `/settings` now fetches `/api/config` on mount and displays VERSION, SCOPE, AUTH, COOLDOWN, and GEO DB status as live badges rather than static text. Shows "Configure in Settings →" link from operator banner.
+- **Geo DB status in engine `/config` response** — `has_geo_db: boolean` added. Settings page and banner both consume it.
+- **`resolve_mutations` tool** — runs `expand_subdomains` candidates through `dnsx` to confirm which subdomain mutations actually resolve. Exposed as MCP tool, REST dispatch, dashboard MUTATIONS tab button, and history detail LIVE MUTATIONS panel.
+- **DKIM selector enumeration** — `RunDnsx` now batches 12 common DKIM selectors (`default`, `google`, `s1`, `selector1`, `selector2`, `resend`, etc.) and merges any found TXT records into the apex DNS result. Enables DKIM detection without knowing the domain's selector name.
+- **"scan →" link on live mutation rows** — each resolved mutation in the dashboard and history detail panels links directly to a pre-filled dashboard scan for that subdomain.
+- **Info callouts on mutations tabs** — brief explanations of what mutations are and why unverified candidates are unverified.
+
+### Changed
+
+- **Visual noise reduced** — scanlines CRT overlay removed; grid background removed; `ReconCardHeader` border-b removed (green left-rail remains the card identity marker); `border-x-0` on operator banner corrected to `border-x-0 border-t-0`.
+- **Recent targets grid** — replaced fragile `nth-child` border hacks with a CSS grid (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`).
+- **Tab bar** — changed from full `border border-border` box to `border-b border-border` underline style.
+- **InfoTooltip** switched from Radix `Tooltip` (hover) to `Popover` (click) — works on touch devices without a hover event.
+- **`SidebarGroupLabel` and `SidebarRail` removed** from `AppSidebar` — cleaner collapsed state.
+
+### Fixed
+
+- **Grid-bg opacity** — reduced background grid line opacity to 30% so lines didn't overpower content (subsequently removed entirely in v0.3.3).
+
+### Documentation
+
+- **README screenshots refreshed** — all four PNGs retaken against the v0.3.2 UI.
+
 ## [0.3.1] — 2026-05-23
 
 ### Added
@@ -116,6 +181,10 @@ All gates apply equally to direct MCP callers (Claude Code / Cline / stdio agent
 - **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + GitHub issue / PR templates.
 - **`CLAUDE.md`** — agent guide for the codebase. The repo is consciously LLM-coding-friendly.
 
-[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/iksnerd/hopper-recon/compare/v0.3.1...v0.3.3
+[0.3.2]: https://github.com/iksnerd/hopper-recon/compare/v0.3.1...v0.3.3
+[0.3.1]: https://github.com/iksnerd/hopper-recon/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/iksnerd/hopper-recon/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/iksnerd/hopper-recon/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/iksnerd/hopper-recon/releases/tag/v0.1.0
