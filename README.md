@@ -4,7 +4,7 @@ Point it at a domain you're authorized to test and get its external attack surfa
 
 Self-hosted — `docker compose up`, SQLite for storage, no external services. Abuse guardrails (gov/mil blocklist, per-target cooldown, scope filter, audit log) are on by default.
 
-[![CI](https://github.com/iksnerd/hopper-recon/actions/workflows/ci.yml/badge.svg)](https://github.com/iksnerd/hopper-recon/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/iksnerd/hopper-recon?style=flat-square&label=release&color=2ea043)](https://github.com/iksnerd/hopper-recon/releases/latest)
 ![Terminal aesthetic — monospace, dark, no hue](https://img.shields.io/badge/UI-terminal--aesthetic-111?style=flat-square&labelColor=080808&color=444)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=next.js)
