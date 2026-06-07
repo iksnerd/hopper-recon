@@ -87,15 +87,6 @@ func (c MCPCtx) gate(tool, target string) (string, bool) {
 			_ = c.Audit.WriteAudit(audit)
 			return audit.Reason, false
 		}
-		for _, implicit := range subfinderImpliedBy(tool) {
-			if recent, rerr := c.Audit.RecentAllowedWithin(target, implicit, cooldownSeconds); rerr == nil && recent {
-				audit.Decision = "blocked"
-				audit.Reason = "cooldown: " + implicit + " ran within " +
-					strconv.Itoa(cooldownSeconds) + "s (" + tool + " calls subfinder internally)"
-				_ = c.Audit.WriteAudit(audit)
-				return audit.Reason, false
-			}
-		}
 	}
 	audit.Decision = "allowed"
 	_ = c.Audit.WriteAudit(audit)

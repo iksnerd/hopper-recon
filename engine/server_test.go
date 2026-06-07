@@ -461,6 +461,33 @@ func TestHandleRunScan_Cooldown(t *testing.T) {
 	}
 }
 
+func TestHandleRunScan_NoCrossToolCooldown(t *testing.T) {
+	// The dashboard fans out passive_subdomains and expand_subdomains in one
+	// scan; both run subfinder internally. Distinct tools must NOT share a
+	// cooldown, or the dashboard 429s its own concurrent batch (and the
+	// discover → expand → resolve agent pipeline blocks itself).
+	db := newTestDB(t)
+	withToolRunner(t, func(_ context.Context, _, _ string) ([]any, error) {
+		return []any{}, nil
+	})
+	h := handleRunScan(db, plainPolicy())
+
+	rec1 := postScan(t, h, `{"tool":"passive_subdomains","target":"example.com"}`)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("passive_subdomains: status=%d, want 200", rec1.Code)
+	}
+	// expand_subdomains immediately after must still run — different tool.
+	rec2 := postScan(t, h, `{"tool":"expand_subdomains","target":"example.com"}`)
+	if rec2.Code != http.StatusOK {
+		t.Errorf("expand_subdomains after passive_subdomains: status=%d, want 200 (no cross-tool cooldown)", rec2.Code)
+	}
+	// Repeating the SAME tool within the window is still blocked.
+	rec3 := postScan(t, h, `{"tool":"passive_subdomains","target":"example.com"}`)
+	if rec3.Code != http.StatusTooManyRequests {
+		t.Errorf("repeat passive_subdomains: status=%d, want 429", rec3.Code)
+	}
+}
+
 // ---- handleGeoipLookup tests ----
 
 func TestHandleGeoipLookup_Empty(t *testing.T) {

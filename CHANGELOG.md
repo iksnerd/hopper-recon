@@ -6,6 +6,10 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dashboard self-collided on the per-target cooldown** — v0.3.3 made `passive_subdomains`, `expand_subdomains`, and `resolve_mutations` share a cooldown surface because all three run subfinder internally. But the dashboard fans those tools out in one parallel scan, and the agent workflow runs discover → expand → resolve in sequence — so whichever wrote its `allowed` audit row first made the others 429 (intermittently, on a first-ever scan). The cross-tool implication fought the product's own design; removed it. The per-`(target, tool)` cooldown stays: repeating the *same* tool against the same target within 60s is still blocked.
+
 ## [0.3.4] — 2026-06-07
 
 ### Fixed

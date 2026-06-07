@@ -173,20 +173,6 @@ func clientIP(r *http.Request) string {
 	return strings.Trim(host, "[]")
 }
 
-// subfinderImpliedBy returns tool names whose subfinder cooldown should also
-// be checked when the given tool runs. expand_subdomains and resolve_mutations
-// both call RunSubfinder internally, so they share the passive_subdomains
-// cooldown in both directions.
-func subfinderImpliedBy(tool string) []string {
-	switch tool {
-	case "expand_subdomains", "resolve_mutations":
-		return []string{"passive_subdomains"}
-	case "passive_subdomains":
-		return []string{"expand_subdomains", "resolve_mutations"}
-	}
-	return nil
-}
-
 // handleRunScan: POST /scan {tool, target} → gate, run, persist, return
 // final state. One transaction from the client's perspective. If the client
 // disconnects before this returns, the boot sweep retires the pending row.
@@ -233,9 +219,14 @@ func handleRunScan(db *DB, policy *Policy) http.HandlerFunc {
 		}
 
 		// 2. Cooldown — stops mash-the-button accidents and cheap automated
-		//    abuse. Reads audit_log so MCP tool calls and REST scans share
-		//    one cooldown surface. Skipped when an explicit blocklist
-		//    override is in force (the operator has already proven intent).
+		//    abuse. Per (target, tool): repeating the SAME tool against the
+		//    same target within the window is what we defang. Distinct tools
+		//    are independent even when they share an underlying binary —
+		//    the dashboard fans out passive_subdomains + expand_subdomains
+		//    (both run subfinder) in one scan, and the agent pipeline runs
+		//    discover → expand → resolve in sequence; neither should self-block.
+		//    Reads audit_log so MCP tool calls and REST scans share one
+		//    cooldown surface. Skipped when a blocklist override is in force.
 		if audit.Reason == "" {
 			recent, err := db.RecentAllowedWithin(req.Target, req.Tool, cooldownSeconds)
 			if err == nil && recent {
@@ -245,16 +236,6 @@ func handleRunScan(db *DB, policy *Policy) http.HandlerFunc {
 				w.Header().Set("Retry-After", strconv.Itoa(cooldownSeconds))
 				writeError(w, http.StatusTooManyRequests, audit.Reason)
 				return
-			}
-			for _, implicit := range subfinderImpliedBy(req.Tool) {
-				if recent, rerr := db.RecentAllowedWithin(req.Target, implicit, cooldownSeconds); rerr == nil && recent {
-					audit.Decision = "blocked"
-					audit.Reason = fmt.Sprintf("cooldown: %s ran within %ds (%s calls subfinder internally)", implicit, cooldownSeconds, req.Tool)
-					_ = db.WriteAudit(audit)
-					w.Header().Set("Retry-After", strconv.Itoa(cooldownSeconds))
-					writeError(w, http.StatusTooManyRequests, audit.Reason)
-					return
-				}
 			}
 		}
 
