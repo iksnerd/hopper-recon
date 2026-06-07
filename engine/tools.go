@@ -284,7 +284,11 @@ type GeoipEntry struct {
 func LookupGeoip(ips []string) ([]GeoipEntry, error) {
 	reader, err := loadGeoipReader()
 	if err != nil {
-		if os.IsNotExist(err) {
+		// No usable mmdb → no geo data, not an error. "Not exist" is the
+		// common case (file not mounted); "permission denied" happens when
+		// the path is inaccessible to the current user (e.g. /root locked
+		// down for the non-root CI runner). Both mean "no db," so degrade.
+		if os.IsNotExist(err) || os.IsPermission(err) {
 			return []GeoipEntry{}, nil
 		}
 		return nil, err
