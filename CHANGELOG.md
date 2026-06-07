@@ -6,6 +6,19 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-06-07
+
+### Fixed
+
+- **CI red since v0.3.3 — geoip permission error treated as fatal** — v0.3.3 made `loadGeoipReader` assign `geoipErr` on `os.Stat` failure, but `LookupGeoip` only swallowed `os.IsNotExist`. On the Linux CI runner the engine's `/root/.config` mmdb path is mode-700, so `stat` as the non-root runner returns `EACCES`, not `ENOENT`; the error propagated and the three `TestLookupGeoip` cases failed. (Green on macOS, where `/root` doesn't exist → `ENOENT`.) `os.IsPermission` is now treated the same as `os.IsNotExist`: an inaccessible mmdb means no geo data, not an error.
+- **Failed tools rendered as successful empty scans** — the engine returns HTTP 200 with `status:"failed"` on tool error (so the message is readable) and the proxy forwards it as `isError`, but the dashboard only threw on `!res.ok`. A tool that errored (tlsx connect refused, httpx timeout) showed a finished tab with blank results instead of an error. The dashboard now throws on `isError` so it routes to the existing error state.
+- **`parseDns` rendered `[undefined]` / `undefineds`** — `status_code` and `ttl` were read with no fallback while every sibling field coalesced; a domain with no A record produced garbage in the DNS panel. Coalesced to match the rest of the parser.
+
+### Changed
+
+- **CI runs only on version tags + manual dispatch** — it previously ran on every push to `main` and every PR, consuming the bulk of the Actions allowance. Day-to-day pushes now cost zero minutes; run the pre-commit checks locally (see `CONTRIBUTING.md`).
+- **README refocused on what/why** — it opened with architecture before saying what the tool does. Rewritten with a value-first lede; ~100 lines of duplicated Configuration/Development/Deployment depth moved to `DEPLOY.md` / `CONTRIBUTING.md` behind a Docs section. Added the missing `resolve_mutations` tool to the tools table.
+
 ## [0.3.3] — 2026-06-04
 
 ### Fixed
