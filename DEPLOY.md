@@ -75,6 +75,41 @@ The engine container also mounts two host directories read-only:
 
 ---
 
+## Optional data sources (GeoLite2, subfinder keys)
+
+Both are optional — the stack runs without them. They only enrich output.
+
+### GeoLite2 (the geo globe)
+
+`lookup_geoip` reads a MaxMind GeoLite2-Country database mounted into the engine. It's license-restricted, so it isn't baked into the image. Missing it just means geoip lookups return empty and the globe doesn't render — everything else works.
+
+**Option A — P3TERX mirror (no account, auto-updated):**
+
+```bash
+mkdir -p ~/.config/hopper-recon
+curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb \
+     -o ~/.config/hopper-recon/GeoLite2-Country.mmdb
+```
+
+**Option B — official MaxMind (free account):**
+
+1. Sign up: <https://www.maxmind.com/en/geolite2/signup>
+2. Login → **Download Databases** → `GeoLite2 Country` → **GeoIP2 Binary (.mmdb)**
+3. Extract:
+   ```bash
+   mkdir -p ~/.config/hopper-recon
+   tar -xzf GeoLite2-Country_*.tar.gz
+   mv GeoLite2-Country_*/GeoLite2-Country.mmdb ~/.config/hopper-recon/
+   ```
+
+Verify: `ls -lh ~/.config/hopper-recon/GeoLite2-Country.mmdb` (~6–10 MB).
+
+### Subfinder API keys
+
+Subfinder works without keys but several sources need them for full coverage. After the first compose-up, subfinder will have created `~/.config/subfinder/provider-config.yaml`. Add your keys (Shodan, VirusTotal, etc.) and recreate the engine: `docker compose up -d --force-recreate engine`.
+
+---
+
 ## Resource expectations
 
 | State | RAM | CPU |

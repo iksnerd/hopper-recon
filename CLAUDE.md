@@ -105,7 +105,7 @@ File layout:
 
 Tools that **require** auth to function are rejected — `asnmap` (PDCP API key) and `uncover` (Shodan/Censys/FOFA keys) were removed in v0.2. `subfinder` runs without keys (degraded source coverage) so it stays. The bar for new tools: must produce useful output for an unconfigured first-time user; auth keys can be optional enrichment but never required.
 
-Currently in: `passive_subdomains`, `resolve_dns`, `fetch_tls_cert`, `probe_http`, `check_cdn`, `find_urls`, `expand_subdomains` (7 scan tools) + `lookup_geoip` (enrichment-only — called on demand for IP→country, not a scan tab). Before adding another scan tool, run `<binary> -h | grep -i 'auth\|api.key\|token'`; if the help mentions any of those terms, the tool fails admission unless the key is genuinely optional.
+Currently in: `passive_subdomains`, `resolve_dns`, `fetch_tls_cert`, `probe_http`, `check_cdn`, `find_urls`, `expand_subdomains`, `resolve_mutations` (8 scan tools) + `lookup_geoip` (enrichment-only — called on demand for IP→country, not a scan tab). Before adding another scan tool, run `<binary> -h | grep -i 'auth\|api.key\|token'`; if the help mentions any of those terms, the tool fails admission unless the key is genuinely optional.
 
 ## UI conventions (web/)
 
