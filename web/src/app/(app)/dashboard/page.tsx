@@ -109,10 +109,16 @@ async function runTool(tool: ToolId | "resolve_mutations", target: string) {
     body: JSON.stringify({ tool, target }),
   })
   const text = await res.text()
-  let data: { error?: string } | null = null
+  let data: { error?: string; isError?: boolean } | null = null
   try { data = text ? JSON.parse(text) : null } catch { /* non-JSON body */ }
   if (!res.ok) {
     throw new Error(data?.error ?? `Scan failed [${res.status}]`)
+  }
+  // The engine returns HTTP 200 with status:"failed" when the tool itself
+  // errored (so the message is readable); the proxy forwards that as isError.
+  // Surface it as a thrown error so the tab shows ERR, not a blank "done".
+  if (data?.isError) {
+    throw new Error(data.error ?? "Tool failed")
   }
   return data
 }

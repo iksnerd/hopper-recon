@@ -204,8 +204,8 @@ export function parseDns(apiResult: unknown): DnsResult | null {
     txt,
     cdn: first["cdn-name"] ?? "",
     asn: first.asn ?? "",
-    status_code: first.status_code,
-    ttl: first.ttl,
+    status_code: first.status_code ?? "",
+    ttl: first.ttl ?? 0,
     resolver: first.resolver ?? [],
     ipDistribution: Object.entries(prefixCounts)
       .map(([prefix, count]) => ({ prefix, count }))
