@@ -1,9 +1,14 @@
 name: ci
 
+# Quota-conserving triggers: CI runs only on version tags (alongside the
+# release workflow) and on manual dispatch. It does NOT run on every push to
+# main or on pull requests — run the pre-commit checks locally instead (see
+# CONTRIBUTING.md). Use the "Run workflow" button to validate on demand.
 on:
   push:
-    branches: [main]
-  pull_request:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

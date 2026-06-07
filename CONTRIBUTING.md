@@ -37,8 +37,10 @@ cd web && npm install && npm run dev
 
 ## Pre-commit checks
 
-These run in CI on every PR. Run them locally before pushing — failing CI
-slows everyone down.
+**Run these locally before every push — they are your only gate.** To conserve
+Actions quota, CI runs only on version tags (and manual dispatch), not on
+pushes or PRs. So nothing checks your branch automatically; the local pass is
+what keeps `main` green.
 
 **Engine (`engine/`)**
 
