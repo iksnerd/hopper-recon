@@ -1,7 +1,13 @@
 import { engineClient } from "@/lib/engine-client"
 
 export async function POST(req: Request) {
-  const { ips } = (await req.json()) as { ips: string[] }
+  let ips: unknown
+  try {
+    const body = (await req.json()) as { ips: unknown }
+    ips = body.ips
+  } catch {
+    return Response.json([])
+  }
   if (!Array.isArray(ips) || ips.length === 0) {
     return Response.json([])
   }

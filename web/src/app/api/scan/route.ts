@@ -18,8 +18,13 @@ type Tool = (typeof VALID_TOOLS)[number]
 const HOPPER_HEADERS = { "X-Hopper-Recon": "authorized-use-only" } as const
 
 export async function POST(req: Request) {
-  const body = await req.json()
-  const { tool, target } = body as { tool: Tool; target: string }
+  let body: { tool: Tool; target: string }
+  try {
+    body = await req.json() as { tool: Tool; target: string }
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400, headers: HOPPER_HEADERS })
+  }
+  const { tool, target } = body
 
   if (!VALID_TOOLS.includes(tool)) {
     return Response.json({ error: "Invalid tool" }, { status: 400, headers: HOPPER_HEADERS })

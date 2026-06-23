@@ -41,7 +41,7 @@ function buildSummary(rows: ScanRow[], domain: string): DomainSummary {
     if (!scans[row.tool]) scans[row.tool] = row
     if (!lastScanned || row.started_at > lastScanned) lastScanned = row.started_at
   }
-  return { domain, lastScanned: lastScanned || new Date().toISOString(), scans }
+  return { domain, lastScanned, scans }
 }
 
 function buildTimeline(rows: ScanRow[]) {
@@ -96,8 +96,8 @@ export default function DomainDetailPage() {
     },
   })
 
-  const summary = rows ? buildSummary(rows, domain) : null
-  const timeline = rows ? buildTimeline(rows) : null
+  const summary = rows?.length ? buildSummary(rows, domain) : null
+  const timeline = rows?.length ? buildTimeline(rows) : null
   const showTimeline = timeline !== null && timeline.length >= 2
 
   const get = (tool: string) => {
@@ -133,6 +133,7 @@ export default function DomainDetailPage() {
   React.useEffect(() => {
     if (!ipKey) return
     const ips = ipKey.split(",").filter(Boolean)
+    let cancelled = false
     fetch("/api/geoip", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -140,14 +141,15 @@ export default function DomainDetailPage() {
     })
       .then(async (r) => r.ok ? r.json() as Promise<{ ip: string; country: string }[]> : [])
       .then((results) => {
-        if (!results.length) return
+        if (cancelled) return
         const counts: Record<string, number> = {}
         for (const { country } of results) {
           counts[country] = (counts[country] ?? 0) + 1
         }
-        setGeoCountries(Object.entries(counts).map(([code, count]) => ({ code, count })))
+        setGeoCountries(results.length ? Object.entries(counts).map(([code, count]) => ({ code, count })) : [])
       })
       .catch(() => {})
+    return () => { cancelled = true; setGeoCountries([]) }
   }, [ipKey])
 
   return (
@@ -156,7 +158,7 @@ export default function DomainDetailPage() {
         segments={[{ label: "HISTORY", href: "/history" }, domain]}
         right={
           <>
-            {summary && (
+            {summary?.lastScanned && (
               <span className="text-micro tracking-widest uppercase text-muted-foreground-3 hidden sm:inline">
                 {formatDistanceToNow(new Date(summary.lastScanned), { addSuffix: true })}
               </span>

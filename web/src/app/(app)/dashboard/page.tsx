@@ -147,7 +147,7 @@ function DashboardInner() {
       const r = await fetch("/api/scans/domains")
       const text = await r.text()
       if (!r.ok || !text) return []
-      return JSON.parse(text) as DomainSummary[]
+      try { return JSON.parse(text) as DomainSummary[] } catch { return [] }
     },
   })
 
@@ -172,7 +172,7 @@ function DashboardInner() {
       promise
         .then((data) => {
           setScan((prev) => {
-            if (!prev) return prev
+            if (!prev || prev.target !== target) return prev
             const start = prev.startedAt[tool] ?? Date.now()
             const dur = Date.now() - start
             return {
@@ -191,7 +191,7 @@ function DashboardInner() {
         })
         .catch((err: Error) => {
           setScan((prev) => {
-            if (!prev) return prev
+            if (!prev || prev.target !== target) return prev
             const start = prev.startedAt[tool] ?? Date.now()
             return {
               ...prev,
