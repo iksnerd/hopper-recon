@@ -280,7 +280,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
     <div className="border border-border bg-card">
       {/* Row header — clickable expand */}
       <div
-        className={`relative px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4 cursor-pointer hover:bg-card-hover transition-colors duration-100 select-none before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] ${open ? "before:bg-terminal-green/70" : "before:bg-foreground/20"}`}
+        className={`relative px-3 sm:px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-4 cursor-pointer hover:bg-card-hover transition-colors duration-100 select-none before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] ${open ? "before:bg-terminal-green/70" : "before:bg-foreground/20"}`}
         onClick={onToggle}
         aria-expanded={open}
       >
@@ -302,11 +302,24 @@ function DomainCard({ data, open, onToggle, onRescan }: {
           {tls && <Stat label="CERT EXPIRY" value={`${tls.daysLeft}d`} cls={certDaysCls(tls.daysLeft)} title={tls.daysLeft < 14 ? "Expires soon — renew immediately" : tls.daysLeft < 30 ? "Expiring within 30 days — schedule renewal" : "Certificate is valid"} />}
           {http && <Stat label="HTTP" value={`[${http.status_code}]`} cls={httpStatusCls(http.status_code)} />}
         </div>
+
+        {/* Compact stats for mobile — the divided strip above is md-and-up only.
+            `basis-full order-last` drops this onto its own line below the domain
+            so the name keeps its width (inline it squeezed the name to nothing). */}
+        <div className="flex md:hidden items-center gap-3 text-micro tabular-nums basis-full order-last pl-5">
+          {subdomains && <span className="text-muted-foreground-2">{subdomains.findings.length} subs</span>}
+          {dns && <span className="text-muted-foreground-2">{dns.a.length} ips</span>}
+          {tls && <span className={certDaysCls(tls.daysLeft)}>cert {tls.daysLeft}d</span>}
+          {http && <span className={httpStatusCls(http.status_code)}>[{http.status_code}]</span>}
+        </div>
         {http?.tech && http.tech.length > 0 && (
-          <div className="hidden lg:flex gap-1 max-w-[200px] overflow-hidden">
-            {http.tech.slice(0, 3).map((t) => (
-              <DataChip key={t} className="px-1.5 text-muted-foreground-3">{t}</DataChip>
+          <div className="hidden lg:flex items-center gap-1 shrink-0">
+            {http.tech.slice(0, 2).map((t) => (
+              <DataChip key={t} className="px-1.5 text-muted-foreground-3 whitespace-nowrap">{t}</DataChip>
             ))}
+            {http.tech.length > 2 && (
+              <span className="text-micro text-muted-foreground-3 tabular-nums">+{http.tech.length - 2}</span>
+            )}
           </div>
         )}
 

@@ -36,7 +36,7 @@ Self-hosted — `docker compose up`, SQLite for storage, no external services. A
 
 ### Dashboard — `/dashboard`
 
-Runs all 7 OSINT tools in parallel against a target with live elapsed timers. Each tab populates as results arrive — subdomains, DNS records, TLS cert, HTTP stack, CDN attribution, historical URLs, and subdomain mutations. The advisory banner shows when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured.
+Runs all 7 OSINT tools in parallel against a target. A summary row and the findings strip sit up top; below them each tool's panel fills in as its scan finishes — subdomains, DNS records, TLS cert, HTTP stack, CDN attribution, historical URLs, and subdomain mutations. A live status line tracks per-tool elapsed time. The advisory banner shows when neither `HOPPER_ALLOWED_DOMAINS` nor authentication is configured.
 
 ![Dashboard with operator advisory banner](./docs/screenshots/02-dashboard-with-banner.png)
 

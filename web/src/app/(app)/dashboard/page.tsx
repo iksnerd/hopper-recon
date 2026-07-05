@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
@@ -100,6 +99,52 @@ function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
   if (id === "find_urls"          && scan.urls)       return ` [${scan.urls.entries.length}]`
   if (id === "expand_subdomains"  && scan.alterx)     return ` [${scan.alterx.entries.length}]`
   return ""
+}
+
+/**
+ * Single live line summarising every tool's state — the affordance that
+ * replaces the old horizontal tab strip. During a scan it shows per-tool
+ * elapsed timers; once done it reads like the durations row on the history
+ * detail page ([OK 1.4s] + the headline count).
+ */
+function ToolStatusRow({ scan, now }: { scan: ScanState; now: number }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border border-border bg-card-inset px-3 py-2 text-micro">
+      {TOOLS.map(({ id, label }) => {
+        const state = scan.states[id]
+        const suffix = tabSuffix(scan, id, now).trim()
+        const dur = scan.durations[id]
+        return (
+          <span key={id} className="inline-flex items-center gap-1.5 tracking-widest uppercase">
+            <span
+              className={
+                state === "done" ? "text-muted-foreground-2"
+                : state === "error" ? "text-destructive"
+                : state === "loading" ? "text-foreground"
+                : "text-muted-foreground-3"
+              }
+            >
+              {label}
+            </span>
+            {state === "loading" && (
+              <span className="inline-flex items-center gap-1 text-terminal-green normal-case tracking-normal">
+                <span className="cursor-blink">▮</span>
+                <span className="tabular-nums">{suffix}</span>
+              </span>
+            )}
+            {state === "done" && (
+              <span className="inline-flex items-center gap-1 normal-case tracking-normal">
+                {suffix && <span className="text-foreground tabular-nums">{suffix}</span>}
+                <span className="text-terminal-green-dim tabular-nums">[OK{dur != null ? ` ${(dur / 1000).toFixed(1)}s` : ""}]</span>
+              </span>
+            )}
+            {state === "error" && <span className="text-destructive normal-case tracking-normal">[ERR]</span>}
+            {state === "idle" && <span className="text-muted-foreground-3">·</span>}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 async function runTool(tool: ToolId | "resolve_mutations", target: string) {
@@ -378,43 +423,28 @@ function DashboardInner() {
               </ReconCardContent>
             </ReconCard>
 
-            {/* Results: two-column at lg (findings left, tabs right).
-                minmax(0,1fr) on the right column lets it shrink below the
-                tabs' / charts' intrinsic width — without it, wide content
-                pushes the whole page past the viewport. */}
-            <div className="lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-6 lg:items-start">
-              <div className="min-w-0">
-                {(scan.subdomains || scan.dns || scan.tls || scan.http) && (
-                  <FindingsStrip
-                    subs={scan.subdomains}
-                    dns={scan.dns}
-                    tls={scan.tls}
-                    http={scan.http}
-                  />
-                )}
-              </div>
+            {/* Findings — full width so every message reads without truncation
+                (previously boxed into a 300px column where lines clipped). */}
+            {(scan.subdomains || scan.dns || scan.tls || scan.http) && (
+              <FindingsStrip
+                subs={scan.subdomains}
+                dns={scan.dns}
+                tls={scan.tls}
+                http={scan.http}
+              />
+            )}
 
-              <div className="min-w-0">
-            {/* Results tabs */}
-            <Tabs defaultValue="passive_subdomains">
-              <TabsList className="bg-card border-b border-border rounded-none w-full justify-start h-auto p-0 gap-0 overflow-x-auto">
-                {TOOLS.map(({ id, label }) => (
-                  <TabsTrigger
-                    key={id}
-                    value={id}
-                    className="font-mono text-body text-muted-foreground rounded-none border-r border-border last:border-r-0 px-4 py-2.5 data-[state=active]:text-terminal-green data-[state=active]:bg-card-hover data-[state=active]:font-bold hover:text-foreground hover:bg-card-hover transition-colors duration-100 gap-2 shadow-none whitespace-nowrap relative data-[state=active]:after:absolute data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:bottom-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-terminal-green"
-                  >
-                    <span className="tracking-wider uppercase">{label}<span className="tabular-nums normal-case tracking-normal">{tabSuffix(scan, id, now)}</span></span>
-                    {scan.states[id] === "loading" && <span className="cursor-blink text-terminal-green">▮</span>}
-                    {scan.states[id] === "error"   && <span className="text-destructive text-micro">[ERR]</span>}
-                    {scan.states[id] === "done"    && <span className="text-terminal-green-dim text-micro">[OK{scan.durations[id] != null ? ` ${(scan.durations[id]! / 1000).toFixed(1)}s` : ""}]</span>}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+            {/* Per-tool progress — one live line, replaces the overflowing tab
+                strip. Mirrors the durations row on the history detail page. */}
+            <ToolStatusRow scan={scan} now={now} />
 
+            {/* Tool results stacked full-width in recon order; each panel fills
+                in as its tool finishes, so there's no dead space and no hidden
+                tabs. Same mental model as the history detail view. */}
+            <div className="space-y-6 min-w-0">
               {/* Subdomains */}
-              <TabsContent value="passive_subdomains" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.passive_subdomains} error={scan.errors.passive_subdomains}>
+              <div>
+                <ToolPanel label="// SUBDOMAINS" state={scan.states.passive_subdomains} error={scan.errors.passive_subdomains}>
                   {scan.subdomains && (
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -486,11 +516,11 @@ function DashboardInner() {
                     </div>
                   )}
                 </ToolPanel>
-              </TabsContent>
+              </div>
 
               {/* DNS */}
-              <TabsContent value="resolve_dns" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.resolve_dns} error={scan.errors.resolve_dns}>
+              <div>
+                <ToolPanel label="// DNS" state={scan.states.resolve_dns} error={scan.errors.resolve_dns}>
                   {scan.dns && (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -546,11 +576,11 @@ function DashboardInner() {
                   </>
                   )}
                 </ToolPanel>
-              </TabsContent>
+              </div>
 
               {/* TLS */}
-              <TabsContent value="fetch_tls_cert" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.fetch_tls_cert} error={scan.errors.fetch_tls_cert}>
+              <div>
+                <ToolPanel label="// TLS" state={scan.states.fetch_tls_cert} error={scan.errors.fetch_tls_cert}>
                   {scan.tls && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Panel label={"// VALIDITY WINDOW"}>
@@ -581,11 +611,11 @@ function DashboardInner() {
                     </div>
                   )}
                 </ToolPanel>
-              </TabsContent>
+              </div>
 
               {/* HTTP */}
-              <TabsContent value="probe_http" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.probe_http} error={scan.errors.probe_http}>
+              <div>
+                <ToolPanel label="// HTTP" state={scan.states.probe_http} error={scan.errors.probe_http}>
                   {scan.http && (
                     <Panel
                       label={"// HTTP PROBE"}
@@ -667,11 +697,11 @@ function DashboardInner() {
                     </Panel>
                   )}
                 </ToolPanel>
-              </TabsContent>
+              </div>
 
               {/* CDN attribution */}
-              <TabsContent value="check_cdn" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.check_cdn} error={scan.errors.check_cdn}>
+              <div>
+                <ToolPanel label="// CDN" state={scan.states.check_cdn} error={scan.errors.check_cdn}>
                   {scan.cdn && (
                     <Panel
                       label={`// CDN ATTRIBUTION [${scan.cdn.entries.length}]`}
@@ -695,11 +725,11 @@ function DashboardInner() {
                     </Panel>
                   )}
                 </ToolPanel>
-              </TabsContent>
+              </div>
 
               {/* Historical URLs */}
-              <TabsContent value="find_urls" className="pt-4 mt-0">
-                <ToolPanel state={scan.states.find_urls} error={scan.errors.find_urls}>
+              <div>
+                <ToolPanel label="// URLS" state={scan.states.find_urls} error={scan.errors.find_urls}>
                   {scan.urls && (
                     <div className="space-y-4">
                       {scan.urls.sourceCounts.length > 0 && (
@@ -740,16 +770,18 @@ function DashboardInner() {
                     </div>
                   )}
                 </ToolPanel>
-              </TabsContent>
+              </div>
               {/* Subdomain mutations */}
-              <TabsContent value="expand_subdomains" className="pt-4 mt-0">
-                <Alert className="mb-4 rounded-none border-border bg-card-inset">
-                  <Info className="size-4 text-muted-foreground" />
-                  <AlertDescription className="text-muted-foreground-2">
-                    Mutations are algorithmically generated variants of discovered subdomains — permutations like <span className="font-mono text-muted-foreground">dev-api</span>, <span className="font-mono text-muted-foreground">staging.api</span>, <span className="font-mono text-muted-foreground">api2</span>. They are unverified guesses; run a DNS resolve pass to find which ones actually exist.
-                  </AlertDescription>
-                </Alert>
-                <ToolPanel state={scan.states.expand_subdomains} error={scan.errors.expand_subdomains}>
+              <div>
+                {scan.states.expand_subdomains === "done" && (
+                  <Alert className="mb-4 rounded-none border-border bg-card-inset">
+                    <Info className="size-4 text-muted-foreground" />
+                    <AlertDescription className="text-muted-foreground-2">
+                      Mutations are algorithmically generated variants of discovered subdomains — permutations like <span className="font-mono text-muted-foreground">dev-api</span>, <span className="font-mono text-muted-foreground">staging.api</span>, <span className="font-mono text-muted-foreground">api2</span>. They are unverified guesses; run a DNS resolve pass to find which ones actually exist.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <ToolPanel label="// MUTATIONS" state={scan.states.expand_subdomains} error={scan.errors.expand_subdomains}>
                   {scan.alterx && (
                     <Panel
                       label={`// MUTATION CANDIDATES [${scan.alterx.entries.length}]`}
@@ -822,8 +854,6 @@ function DashboardInner() {
                     )}
                   </Panel>
                 )}
-              </TabsContent>
-            </Tabs>
               </div>
             </div>
           </>
@@ -833,26 +863,27 @@ function DashboardInner() {
   )
 }
 
-function ToolPanel({ state, error, children }: {
+// In the stacked layout each tool's panel simply appears once the tool
+// finishes. While it's still running there's nothing to show — live progress
+// is carried by ToolStatusRow — so we render null and avoid a tower of
+// "scanning..." placeholders. Errors surface as a labelled panel so the reader
+// knows which tool failed even though the section order is completion-driven.
+function ToolPanel({ label, state, error, children }: {
+  label: string
   state: ToolState
   error?: string
   children: React.ReactNode
 }) {
-  if (state === "loading") {
-    return (
-      <div className="flex items-center gap-2 h-32 px-2 text-muted-foreground text-body">
-        <span className="cursor-blink">█</span>
-        <span>scanning...</span>
-      </div>
-    )
-  }
   if (state === "error") {
     return (
-      <div className="border border-destructive bg-card p-4 text-body text-destructive">
-        <span className="text-muted-foreground mr-2">[ERR]</span>{error ?? "scan failed"}
-      </div>
+      <Panel label={label} className="border-destructive/60">
+        <p className="text-body text-destructive py-1">
+          <span className="text-muted-foreground mr-2">[ERR]</span>{error ?? "scan failed"}
+        </p>
+      </Panel>
     )
   }
+  if (state !== "done") return null
   return <>{children}</>
 }
 

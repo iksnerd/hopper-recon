@@ -201,7 +201,11 @@ export function parseDns(apiResult: unknown): DnsResult | null {
     aaaa: first.aaaa ?? [],
     ns: first.ns ?? [],
     mx: first.mx ?? [],
-    txt,
+    // Collapse exact-duplicate TXT records for display — some domains publish
+    // many identical empty `v=DKIM1; p=` entries that would otherwise flood the
+    // panel. Distinct records (real DKIM selectors, verifications) are kept.
+    // Security detection above reads the original `txt`, so it's unaffected.
+    txt: Array.from(new Set(txt)),
     cdn: first["cdn-name"] ?? "",
     asn: first.asn ?? "",
     status_code: first.status_code ?? "",
