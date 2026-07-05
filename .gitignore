@@ -48,6 +48,7 @@ Thumbs.db
 .claude/ide/
 .agents/
 .gemini/
+.codex/
 .mcp.json
 .screenshots/
 skills-lock.json
