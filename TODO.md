@@ -272,9 +272,16 @@ before editing rather than trusting them exactly.
 
 ### Layout / a11y
 
-- [ ] **Breadcrumb collides at 390px.** `BreadcrumbList` is `flex-nowrap`, only the leaf
-      segment gets `truncate`, and the separators have no `shrink-0`, so "HISTORY" and
-      "EXAMPLE.COM" overlap on the history detail route (`components/recon/page-header.tsx:78`).
+- [x] **Breadcrumb collides at 390px.** (fixed 2026-09-06) `BreadcrumbList` is `flex-nowrap`,
+      only the leaf segment got `truncate`, and the separators had no `shrink-0`, so "HISTORY"
+      and "EXAMPLE.COM" overlapped on the history detail route.
+      **Cause:** every mapped item got `min-w-0`, so intermediate segments could shrink, but
+      only the leaf could `truncate` — a segment that shrinks without truncating overruns the
+      next one. **Fix:** everything except the leaf is `shrink-0` (separators included) and the
+      leaf absorbs the squeeze; the `HOPPER-RECON` root is dropped below `sm` to buy the leaf
+      back its width, which costs nothing since the sidebar logo already links home.
+      Verified across 4 widths x 3 routes by measuring adjacent bounding boxes for overlap,
+      spill past the header edge, and document overflow: 12/12 clean.
 - [ ] **No `h1` on any page.** The highest heading is the `h3` inside `ReconCardTitle`; page
       identity lives only in the breadcrumb nav.
 - [ ] **Blank metric cell while loading.** During a scan the SUBDOMAINS `MetricCell` renders

@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useSidebar } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
 import { PanelLeftIcon } from "lucide-react"
 import {
   Breadcrumb as ShadBreadcrumb,
@@ -74,8 +75,14 @@ export function Breadcrumb({
   const items = normalize(segments)
   return (
     <ShadBreadcrumb className="min-w-0">
+      {/* flex-nowrap keeps the trail on one line, so every segment except the
+          leaf is shrink-0 and the leaf absorbs the squeeze by truncating. An
+          intermediate segment that can shrink but cannot truncate overruns the
+          next one, which is what collided at 390px. The root is dropped below
+          `sm` to buy the leaf back its width — the sidebar logo already links
+          home, so nothing is lost. */}
       <BreadcrumbList className="gap-2 flex-nowrap min-w-0">
-        <BreadcrumbItem>
+        <BreadcrumbItem className="hidden sm:inline-flex shrink-0">
           <BreadcrumbLink
             asChild
             className="font-mono text-micro tracking-widest uppercase text-muted-foreground-3 hover:text-terminal-green transition-colors"
@@ -88,10 +95,15 @@ export function Breadcrumb({
           const last = i === items.length - 1
           return (
             <React.Fragment key={`${i}-${item.label}`}>
-              <BreadcrumbSeparator className="text-muted-foreground-3 [&>svg]:hidden">
+              <BreadcrumbSeparator
+                className={cn(
+                  "text-muted-foreground-3 shrink-0 [&>svg]:hidden",
+                  i === 0 && "hidden sm:inline-flex",
+                )}
+              >
                 <span aria-hidden>/</span>
               </BreadcrumbSeparator>
-              <BreadcrumbItem className="min-w-0">
+              <BreadcrumbItem className={cn(last ? "min-w-0" : "shrink-0")}>
                 {last ? (
                   <BreadcrumbPage className="font-mono text-body text-foreground font-bold uppercase tracking-wide truncate">
                     {item.label}
