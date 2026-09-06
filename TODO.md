@@ -134,12 +134,19 @@ subfinder, dnsx, httpx, tlsx, cdncheck, urlfinder, alterx.
 
 ### Admitted — worth adding
 
-- [ ] **`tldfinder`** — MIT, passive, no key required. Discovers sibling root domains for an
-      org (`-dm domain`), which nothing currently in the set does: subfinder expands *below*
-      a known apex, tldfinder expands *sideways* to apexes we don't know about. Optional
-      censys/whoisxmlapi keys widen sources; the free sources (waybackarchive, hackertarget)
-      work unconfigured — same posture as subfinder. Feeds discovered apexes back into the
-      normal scan pipeline. New scan tool + dashboard tab.
+- [x] **`tldfinder`** — shipped as `find_domains` (2026-09-06). MIT, no key required. Discovers
+      sibling root domains for an org — subfinder expands *below* a known apex, tldfinder
+      expands *sideways* to apexes we don't know about.
+      **Correction to the original audit line above:** `-dm domain` mode's only two sources
+      (whoisxmlapi, whoxy) both require paid keys and return nothing unconfigured — the
+      "free sources (waybackarchive, hackertarget)" claim was wrong (hackertarget isn't even
+      in tldfinder's source list; that's a subfinder source). The mode that actually clears
+      admission is `-dm tld`: it brute-forces the org label across ~1,450 IANA TLDs and
+      DNS-resolves each candidate via a single free source (`dnsx`, no key) — active DNS
+      against public nameservers, not the target's own infra. Implemented as `RunTldfinder`
+      in `engine/tools.go`, pinned to `tldfinder@v0.0.2` in the Dockerfile (only tagged
+      release; verified functionally identical to `main`). Feeds discovered apexes back into
+      the scan pipeline via `scan →` links on both dashboard and history detail.
 - [ ] **`mapcidr`** — MIT, pure local CIDR math, zero network egress. Turns the ASN/CIDR data
       httpx (`-asn`) and cdncheck already return into enumerable host ranges. Enrichment-only,
       like `lookup_geoip` — a helper on existing results, not its own scan tab.
@@ -186,6 +193,88 @@ subfinder, dnsx, httpx, tlsx, cdncheck, urlfinder, alterx.
   > reports `v1.2.52`, and dnsx prints nothing parseable. The authoritative check is the module
   > version stamped in the binary:
   > `docker build --target builder -t b:tmp engine && docker run --rm --entrypoint go b:tmp version -m /go/bin/tlsx`
+
+---
+
+## Planned — UI review findings (2026-09-06)
+
+Live review of the running stack: 7 pages at 1440px and 390px, both themes, scanning
+`example.com` (24,956 subdomains — the volume is what exposes most of these). Ranked by
+severity. Line refs were taken while the `find_domains` work was mid-flight, so re-grep
+before editing rather than trusting them exactly.
+
+### Blocker
+
+- [ ] **Unbounded result lists lock up the tab.** `ALL SUBDOMAINS`
+      (`dashboard/page.tsx:511`) maps every finding into a `CopyableText` inside a
+      `max-h-[280px] overflow-y-auto` box. On `example.com` that's 24,956 components. The
+      page doesn't just get slow: `browser_evaluate` timed out at 120s twice, and
+      *navigating away from the dashboard* timed out at 60s twice. Same unbounded pattern at
+      `MUTATION CANDIDATES [5000]` (`:861`), the `find_domains` panel (`:548`), `URLS`
+      (`:807`), and the equivalent panels on history detail.
+      Needs a decision: virtualize (add a windowing dep) vs. paginate + filter (`pagination`,
+      `command`, `input-group`, `scroll-area` are all vendored and unused). Either way a
+      search box is required — 24,956 rows with no filter is unusable even when it renders.
+
+### Charts
+
+- [ ] **Fills clamp to near-black past the 4th series.**
+      `CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]` sends every index ≥ 4 to `#222222`,
+      which sits on `--card: oklch(0.10)` (≈ `#191919`). BY CATEGORY renders 8 rows, BY
+      SOURCE renders 9, so most bars are invisible. Seven call sites: `dashboard:470,493,581`,
+      `history/page:401,441`, `history/[domain]:261,391`. Fix is `i % CHART_FILLS.length`,
+      and `#222222` should leave the palette entirely — it has no usable contrast on the card
+      in either theme.
+- [ ] **Chart palette is dark-theme-only, so light theme erases the bars.**
+      `lib/chart-style.ts` hardcodes hexes under a comment claiming they "mirror the CSS
+      tokens in globals.css". They don't: globals.css defines both themes in oklch, and light
+      `--card` is `oklch(0.93)`. `CHART_FILLS[0] = #f0f0f0` is invisible on it — verified, the
+      single bar still visible in dark mode disappears completely in light. `TOOLTIP_STYLE`
+      likewise paints a `#111111` tooltip on a white page. Fix the stale comment along with
+      the values; it's the line that misleads the next reader.
+- [ ] **Dashboard bypasses `ChartContainer`; history uses it.** The history pages wrap charts
+      in shadcn's `ChartContainer`, which injects per-theme CSS vars and is exactly the fix
+      for the item above. The dashboard uses raw `ResponsiveContainer` + `Tooltip`. Same data,
+      two different tooltip treatments. Standardise on `ChartContainer`.
+- [ ] **Long-tail data defeats the category chart regardless of color.** "Other" is ~24k of
+      24,956, so every other category is sub-pixel even with the palette fixed. Either label
+      values as text, use a log scale, or drop the chart for a count table. Worth checking the
+      categoriser separately — putting 96% of hosts in "Other" is its own bug.
+
+### Layout / a11y
+
+- [ ] **Breadcrumb collides at 390px.** `BreadcrumbList` is `flex-nowrap`, only the leaf
+      segment gets `truncate`, and the separators have no `shrink-0`, so "HISTORY" and
+      "EXAMPLE.COM" overlap on the history detail route (`components/recon/page-header.tsx:78`).
+- [ ] **No `h1` on any page.** The highest heading is the `h3` inside `ReconCardTitle`; page
+      identity lives only in the breadcrumb nav.
+- [ ] **Blank metric cell while loading.** During a scan the SUBDOMAINS `MetricCell` renders
+      empty while its siblings show values, which reads as broken rather than pending.
+      `skeleton` is vendored and used once.
+
+### Product friction
+
+- [ ] **Settings is read-only, but the app sends users there to configure.** The unscoped
+      advisory banner links "Configure in Settings →" to a page with no controls — every value
+      is an engine env var. Either make scope/cooldown editable (needs an engine write
+      endpoint) or change the banner to say where the setting actually lives.
+- [ ] **Hydration mismatch on `/settings`.** React error #418 in the console on navigation.
+      `OperatorWarningBanner` is not the cause (it uses `useSyncExternalStore` with a proper
+      server snapshot). Needs a dev build to localise.
+- [ ] **`cert -29d` is cryptic.** Negative days for an expired cert reads as a puzzle on the
+      RECENT TARGETS tiles; "expired 29d ago" doesn't.
+
+### Primitive coverage
+
+19 of 57 vendored `components/ui` primitives are imported anywhere. That's fine on its own,
+but several unused ones map directly onto gaps above and elsewhere in this file:
+
+- [ ] `empty` — vendored, unused, and "empty state illustrations" is already an open
+      follow-up below. Use the primitive rather than hand-rolling.
+- [ ] `sonner` — no toast anywhere in the app; scan errors surface only inline in their panel,
+      so an error on a panel scrolled off-screen is silent.
+- [ ] `progress` — scan progress is text-only (`SCANNING 4/7`).
+- [ ] `pagination` / `command` / `scroll-area` — see the blocker above.
 
 ---
 
