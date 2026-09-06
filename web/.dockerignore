@@ -4,3 +4,9 @@ node_modules
 *.log
 .env*
 .DS_Store
+
+# Dev-only mock engine and its fixtures. Nothing under src/ imports them, so
+# `next build` never bundles them, and the runtime image (which copies only
+# .next/standalone, .next/static and public) never sees them either. Excluded
+# so ~700KB of fixtures stays out of the build context.
+mocks

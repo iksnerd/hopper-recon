@@ -50,6 +50,8 @@ When changing replica targets, only edit `litestream.yml` — the compose file d
 
 This is **not** the Next.js you know — version 16 has breaking changes from prior majors. Before writing code in `web/`, run `npm install` first, then read the relevant guide in `web/node_modules/next/dist/docs/`. Heed deprecation notices.
 
+For UI work, `npm run dev:mock` (in `web/`) runs the dashboard against `mocks/engine.mjs` instead of the real engine — no Docker, no recon binaries, no traffic to real hosts. Fixtures are real captured engine output; unknown targets are synthesised; `huge.test` yields ~23.5k subdomains for list-perf work. See `web/README.md` for the knobs. Don't calibrate distribution-sensitive UI against it — the mock's category spread is flatter than the real long tail.
+
 **Run before declaring work done:**
 
 - `npx tsc --noEmit` — type-check (must pass clean; do not silence with `any` or `@ts-ignore`)
@@ -99,13 +101,14 @@ File layout:
 5. Add tests in `engine/tools_test.go`: use `withExecJSONL` to stub subprocess output and test JSONL parsing + any merge logic. Add handler tests in `engine/server_test.go` for the new `runTool` dispatch case. Run `go test ./...` clean before moving on.
 6. On the web side, add the tool name to `VALID_TOOLS` in `web/src/app/api/scan/route.ts`, write a parser in `web/src/lib/scan-parser.ts` (consume the flat parsed-object array — no JSONL re-parsing), and surface a tab/panel on dashboard + history pages.
 7. Surface attribution: attach a `ToolSourceLink` to the tool's main result Panel on the dashboard (passes the link into the Panel's `action` slot), and add an entry to `RECON_TOOLS` in `web/src/app/(app)/about/page.tsx` so the `/about` credits page lists it.
-8. Rebuild the image (`docker compose build engine`) and recreate the container (`docker compose up -d --force-recreate engine`).
+8. Add the tool to the dev mock: a `case "<name>":` in `synthesise()` and an entry in the `TOOLS` array in `web/mocks/engine.mjs`. `web/src/lib/__tests__/mock-engine.test.ts` fails if you skip this. Match the **engine's** output shape, not the upstream binary's — the engine normalises some fields (subfinder's `source` string becomes a `sources` array, httpx `cpe` entries are objects). Capture a real row from a live scan and copy its shape rather than guessing.
+9. Rebuild the image (`docker compose build engine`) and recreate the container (`docker compose up -d --force-recreate engine`).
 
 ## Tool admission policy
 
 Tools that **require** auth to function are rejected — `asnmap` (PDCP API key) and `uncover` (Shodan/Censys/FOFA keys) were removed in v0.2. `subfinder` runs without keys (degraded source coverage) so it stays. The bar for new tools: must produce useful output for an unconfigured first-time user; auth keys can be optional enrichment but never required.
 
-Currently in: `passive_subdomains`, `resolve_dns`, `fetch_tls_cert`, `probe_http`, `check_cdn`, `find_urls`, `expand_subdomains`, `resolve_mutations` (8 scan tools) + `lookup_geoip` (enrichment-only — called on demand for IP→country, not a scan tab). Before adding another scan tool, run `<binary> -h | grep -i 'auth\|api.key\|token'`; if the help mentions any of those terms, the tool fails admission unless the key is genuinely optional.
+Currently in: `passive_subdomains`, `find_domains`, `resolve_dns`, `fetch_tls_cert`, `probe_http`, `check_cdn`, `find_urls`, `expand_subdomains`, `resolve_mutations` (9 scan tools) + `lookup_geoip` (enrichment-only — called on demand for IP→country, not a scan tab). Before adding another scan tool, run `<binary> -h | grep -i 'auth\|api.key\|token'`; if the help mentions any of those terms, the tool fails admission unless the key is genuinely optional.
 
 ## UI conventions (web/)
 
