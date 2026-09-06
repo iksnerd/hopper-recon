@@ -294,16 +294,14 @@ before editing rather than trusting them exactly.
       `ABOUT`) — is now wrapped in `<h1 className="contents">` in `page-header.tsx`'s shared
       `Breadcrumb`. `contents` keeps it out of the flex layout entirely, so nothing visually
       changes; verified via a11y snapshot that every route now reports a `heading level="1"`.
-- [ ] **Blank metric cell while loading.** During a scan the SUBDOMAINS `MetricCell` renders
-      empty while its siblings show values, which reads as broken rather than pending.
-      `skeleton` is vendored and used once.
-      **Not reproduced on inspection** — `MetricCell` already renders a blinking-cursor
-      placeholder (`loading ? <cursor-blink>█ : value`), and all four dashboard `MetricCell`
-      calls pass `loading={scan.states.<tool> === "loading"}` correctly; `EMPTY_STATES`
-      defaults every tool to `"loading"` so there's no gap before the first paint either. Live
-      re-check on a real scan (not just error/complete snapshots) still needed to confirm
-      there's no narrower timing window this misses — engine was down for the rest of this
-      session.
+- [x] **Blank metric cell while loading.** (checked 2026-09-06) **Not reproduced.** Original
+      note: during a scan the SUBDOMAINS `MetricCell` renders empty while its siblings show
+      values, reading as broken rather than pending. Code inspection found `MetricCell` already
+      renders a blinking-cursor placeholder while loading, and confirmed live: scanned
+      `digitalocean.com` and caught the mid-scan a11y snapshot at 12.3s in — SUBDOMAINS showed
+      `█` while DNS/TLS/HTTP/CDN (already resolved) showed real values, exactly the intended
+      pending state, never blank. No code change needed. `skeleton` (vendored, used once
+      elsewhere) stays on the table if a future state genuinely needs it.
 
 ### Product friction
 
