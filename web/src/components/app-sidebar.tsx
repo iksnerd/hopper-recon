@@ -79,7 +79,15 @@ export function AppSidebar() {
             className="text-muted-foreground-3 hover:text-terminal-green transition-colors"
             aria-label="Toggle theme"
           >
-            {(resolvedTheme ?? "dark") === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+            {/* Both icons are always rendered and CSS picks one. Branching on
+                resolvedTheme here caused a hydration mismatch (React #418): the
+                prerendered HTML is built with resolvedTheme undefined, so it
+                always baked the dark-theme icon, and a client in light theme
+                rendered the other one. Dark-theme users never saw it, which is
+                why it read as a /settings-only bug. next-themes sets the class
+                on <html> in a blocking script, so there is no flash. */}
+            <Sun className="size-3.5 hidden dark:block" />
+            <Moon className="size-3.5 dark:hidden" />
           </button>
         </div>
       </SidebarFooter>

@@ -309,9 +309,24 @@ before editing rather than trusting them exactly.
       Reworded the advisory banner link from "Configure in Settings →" to "See Settings for how
       to lock this down →" — doesn't imply an in-app control that doesn't exist. Making
       scope/cooldown actually editable still needs an engine write endpoint; not done here.
-- [ ] **Hydration mismatch on `/settings`.** React error #418 in the console on navigation.
-      `OperatorWarningBanner` is not the cause (it uses `useSyncExternalStore` with a proper
-      server snapshot). Needs a dev build to localise.
+- [x] **Hydration mismatch (React #418).** (fixed 2026-09-06) Originally logged here as a
+      `/settings` bug; it was app-wide. It fired on **every** route, but only in light theme,
+      which is why it looked route-specific — I happened to be on `/settings` right after
+      toggling the theme.
+      **Cause:** the sidebar theme toggle picked its icon with
+      `(resolvedTheme ?? "dark") === "dark" ? <Sun/> : <Moon/>`. Pages are statically
+      prerendered, and at build time `resolvedTheme` is `undefined`, so the dark-theme icon was
+      always baked in; a client in light theme rendered the other element. Dark-theme users
+      never saw it. `OperatorWarningBanner` was correctly exonerated — it uses
+      `useSyncExternalStore` with a server snapshot.
+      **Fix:** render both icons and let CSS pick, via the `dark:` variant
+      (`@custom-variant dark (&:is(.dark *))` in globals.css). No hook, no `mounted` flag, so
+      no mismatch is possible — and it sidesteps the eslint `set-state-in-effect` rule that
+      rules out the usual `useEffect(() => setMounted(true))` workaround. next-themes sets the
+      class in a blocking script, so there's no flash.
+      Verified across 4 routes x 3 theme states (12/12 clean) against a production build, plus
+      the toggle still swaps icon and theme in both directions. Note this only reproduces in a
+      **production** build — `next dev` doesn't prerender, so `npm run dev` never shows it.
 - [x] **`cert -29d` is cryptic.** (fixed 2026-09-06) `recon-display.ts`'s `certDaysLabel` now
       reads `expired Nd ago` for negative `daysLeft` instead of `-Nd`; new `certValidityLabel`
       helper covers the "Nd remaining" progress-bar caption variant so the flip isn't duplicated
