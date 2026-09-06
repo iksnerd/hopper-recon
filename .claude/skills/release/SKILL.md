@@ -1,3 +1,8 @@
+---
+name: release
+description: Cut a hopper-recon release — decide the semver bump, sync the version strings in engine/tools.go and web/package.json, run the engine and web checks, write the CHANGELOG entry, commit, annotated-tag, push, and rebuild the Docker images so the baked-in version matches the tag. Use when asked to release, cut a version, tag a version, bump the version, or ship a new version of hopper-recon.
+---
+
 # hopper-recon release skill
 
 Cut a new release: bump versions, commit, tag, push, and rebuild Docker images.
