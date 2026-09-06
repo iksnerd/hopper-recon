@@ -9,8 +9,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
+  parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -42,6 +42,7 @@ import { certDaysLabel, httpStatusBracket } from "@/lib/recon-display"
 
 const TOOLS = [
   { id: "passive_subdomains", label: "SUBDOMAINS" },
+  { id: "find_domains",       label: "DOMAINS" },
   { id: "resolve_dns",        label: "DNS" },
   { id: "fetch_tls_cert",     label: "TLS" },
   { id: "probe_http",         label: "HTTP" },
@@ -59,6 +60,7 @@ interface ScanState {
   startedAt: Record<ToolId, number | null>
   durations: Partial<Record<ToolId, number>>
   subdomains: SubdomainResult | null
+  domains: DomainsResult | null
   dns: DnsResult | null
   tls: TlsResult | null
   http: HttpResult | null
@@ -73,6 +75,7 @@ interface ScanState {
 
 const EMPTY_STATES: Record<ToolId, ToolState> = {
   passive_subdomains: "loading",
+  find_domains: "loading",
   resolve_dns: "loading",
   fetch_tls_cert: "loading",
   probe_http: "loading",
@@ -92,6 +95,7 @@ function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
   if (state === "error") return ""
   // done — show inline data
   if (id === "passive_subdomains" && scan.subdomains) return ` [${scan.subdomains.findings.length}]`
+  if (id === "find_domains"       && scan.domains)    return ` [${scan.domains.findings.length}]`
   if (id === "resolve_dns"        && scan.dns)        return ` [${scan.dns.a.length} IP${scan.dns.a.length === 1 ? "" : "s"}]`
   if (id === "fetch_tls_cert"     && scan.tls)        return ` [${scan.tls.daysLeft}d]`
   if (id === "probe_http"         && scan.http)       return ` [${scan.http.status_code}]`
@@ -204,9 +208,9 @@ function DashboardInner() {
     const initial: ScanState = {
       target,
       states: { ...EMPTY_STATES },
-      startedAt: { passive_subdomains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
+      startedAt: { passive_subdomains: t0, find_domains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
       durations: {},
-      subdomains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null,
+      subdomains: null, domains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null,
       resolvedMuts: null, resolveMutState: "idle", resolveMutError: null, errors: {},
     }
     setScan(initial)
@@ -225,6 +229,7 @@ function DashboardInner() {
               states: { ...prev.states, [tool]: "done" },
               durations: { ...prev.durations, [tool]: dur },
               ...(tool === "passive_subdomains" ? { subdomains: parseSubdomains(data) } : {}),
+              ...(tool === "find_domains"       ? { domains: parseDomains(data) }       : {}),
               ...(tool === "resolve_dns"        ? { dns: parseDns(data) }               : {}),
               ...(tool === "fetch_tls_cert"     ? { tls: parseTls(data) }               : {}),
               ...(tool === "probe_http"         ? { http: parseHttp(data) }             : {}),
@@ -514,6 +519,47 @@ function DashboardInner() {
                         )}
                       </Panel>
                     </div>
+                  )}
+                </ToolPanel>
+              </div>
+
+              {/* Sibling apex domains */}
+              <div>
+                <ToolPanel label="// DOMAINS" state={scan.states.find_domains} error={scan.errors.find_domains}>
+                  {scan.domains && (
+                    <Panel
+                      label={`// SIBLING DOMAINS [${scan.domains.findings.length}]`}
+                      action={<ToolSourceLink name="tldfinder" url="https://github.com/projectdiscovery/tldfinder" />}
+                    >
+                      {scan.domains.findings.length === 0 ? (
+                        <p className="text-body text-muted-foreground py-6">
+                          no sibling top-level-domain variants found for this organisation name
+                        </p>
+                      ) : (
+                        <>
+                          {scan.domains.sourceCounts.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {scan.domains.sourceCounts.map(({ source, count }) => (
+                                <DataChip key={source}>{source} {count}</DataChip>
+                              ))}
+                            </div>
+                          )}
+                          <div className="space-y-px max-h-[280px] overflow-y-auto bg-card-inset">
+                            {scan.domains.findings.map((e) => (
+                              <div key={e.host} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
+                                <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
+                                <Link
+                                  href={`/dashboard?domain=${encodeURIComponent(e.host)}`}
+                                  className="hidden group-hover:inline font-mono text-micro text-terminal-green hover:underline shrink-0"
+                                >
+                                  scan →
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </Panel>
                   )}
                 </ToolPanel>
               </div>

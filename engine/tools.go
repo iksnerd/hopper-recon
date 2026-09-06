@@ -95,6 +95,41 @@ func RunSubfinder(ctx context.Context, domain string) ([]SubfinderEntry, error) 
 	return findings, nil
 }
 
+// TldfinderEntry is a single sibling top-level-domain discovery — the same
+// organisation label resolved under a different TLD (e.g. "example.io" found
+// while scanning "example.com").
+type TldfinderEntry struct {
+	Host    string   `json:"host"`
+	Sources []string `json:"sources"`
+}
+
+// RunTldfinder discovers sibling apex domains for the same organisation name
+// by brute-forcing the label across ProjectDiscovery's ~1,450-entry IANA TLD
+// list and DNS-resolving each candidate (-dm tld). This is the only
+// discovery mode admitted here: the default "dns" mode and "domain" mode
+// (which the tool's own docs describe as sibling-domain discovery) both rely
+// on OSINT sources that are entirely API-key-gated (whoisxmlapi, whoxy,
+// censys) and return nothing unconfigured. "tld" mode's only source (dnsx)
+// needs no key — it's active DNS resolution against public nameservers, not
+// against the target's own infrastructure. tldfinder extracts the
+// second-level label from the input itself, so the full apex domain (e.g.
+// "example.com") is passed straight through.
+func RunTldfinder(ctx context.Context, domain string) ([]TldfinderEntry, error) {
+	out, err := execJSONL(ctx, "tldfinder",
+		[]string{"-d", domain, "-dm", "tld", "-silent", "-json", "-cs"}, "")
+	if err != nil {
+		return nil, err
+	}
+	var findings []TldfinderEntry
+	for _, line := range out {
+		var entry TldfinderEntry
+		if json.Unmarshal([]byte(line), &entry) == nil && entry.Host != "" {
+			findings = append(findings, entry)
+		}
+	}
+	return findings, nil
+}
+
 // dkimSelectors is the ordered list of common DKIM selector names queried during
 // DNS resolution. Each is tried as <selector>._domainkey.<domain>. Any found
 // TXT records are merged into the apex result so the parser sees v=DKIM1 at the

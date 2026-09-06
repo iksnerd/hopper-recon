@@ -10,6 +10,7 @@ type Credit = {
 
 const RECON_TOOLS: Credit[] = [
   { name: "subfinder",     url: "https://github.com/projectdiscovery/subfinder", note: "passive subdomain enumeration across 40+ osint sources" },
+  { name: "tldfinder",     url: "https://github.com/projectdiscovery/tldfinder", note: "sibling top-level-domain discovery — resolves an org name across ~1,450 tlds" },
   { name: "dnsx",          url: "https://github.com/projectdiscovery/dnsx",      note: "fast multi-resolver dns toolkit (a / cname / ns / mx / txt)" },
   { name: "httpx",         url: "https://github.com/projectdiscovery/httpx",     note: "http probe — title, tech stack, jarm, redirect chain" },
   { name: "tlsx",          url: "https://github.com/projectdiscovery/tlsx",      note: "tls cert details — sans, expiry, cipher, weak / wildcard / expired flags" },

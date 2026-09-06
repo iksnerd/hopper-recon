@@ -122,6 +122,7 @@ The HTTP variant connects to your long-running engine and shares the dashboard's
 | MCP name | Binary | What it does |
 |---|---|---|
 | `passive_subdomains` | subfinder | OSINT subdomain enumeration across 40+ sources (free without keys, more with) |
+| `find_domains` | tldfinder | Sibling top-level-domain discovery — resolves the org name against ~1,450 TLDs (e.g. finds `example.io` while scanning `example.com`). Free, unconfigured DNS resolution — no API keys, no requests to the target. |
 | `resolve_dns` | dnsx | A / **AAAA** / CNAME / NS / MX / TXT records, CDN detection, DMARC merge from `_dmarc.<host>` |
 | `fetch_tls_cert` | tlsx | TLS cert details — CN, SANs, expiry, cipher, wildcard/expired/self-signed flags |
 | `probe_http` | httpx | HTTP probe — title, tech stack, JARM, CPE, redirect chain. Custom UA, 50 rps cap |
@@ -161,7 +162,7 @@ A **Go engine** wraps the [projectdiscovery](https://github.com/projectdiscovery
 hopper-recon/
 ├── engine/                    # Go server — HTTP REST + stdio MCP, owns SQLite
 │   ├── main.go                # Entrypoint, mode dispatch, MCP tool registration
-│   ├── tools.go               # Recon-binary runners (subfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/alterx/geoip)
+│   ├── tools.go               # Recon-binary runners (subfinder/tldfinder/dnsx/tlsx/httpx/cdncheck/urlfinder/alterx/geoip)
 │   ├── policy.go              # Scope filter, gov/mil blocklist, per-target cooldown
 │   ├── db.go                  # SQLite schema + queries (WAL mode, load-bearing for Litestream)
 │   ├── server.go              # REST handlers + /mcp mount

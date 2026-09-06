@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   parseCdn,
   parseDns,
+  parseDomains,
   parseHttp,
   parseSubdomains,
   parseTls,
@@ -138,6 +139,26 @@ describe("parseSubdomains", () => {
       "Marketing",
       "Web",
     ])
+  })
+})
+
+describe("parseDomains", () => {
+  it("passes through TldfinderEntry shape and counts sources", () => {
+    const result = parseDomains({
+      results: [
+        { host: "example.io", input: "example.com", sources: ["dnsx"] },
+        { host: "example.net", input: "example.com", sources: ["dnsx"] },
+      ],
+    })
+    expect(result.findings).toHaveLength(2)
+    expect(result.findings[0].host).toBe("example.io")
+    expect(result.sourceCounts).toEqual([{ source: "dnsx", count: 2 }])
+  })
+
+  it("handles an empty results array", () => {
+    const result = parseDomains({ results: [] })
+    expect(result.findings).toEqual([])
+    expect(result.sourceCounts).toEqual([])
   })
 })
 

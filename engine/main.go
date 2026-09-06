@@ -24,6 +24,11 @@ type subfinderOutput struct {
 	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
 }
 
+type tldfinderOutput struct {
+	Findings []TldfinderEntry `json:"findings" jsonschema:"Sibling top-level-domain variants found for the same organisation name (e.g. example.io alongside example.com)"`
+	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
+}
+
 type alterxOutput struct {
 	Findings []AlterxEntry `json:"findings" jsonschema:"Subdomain mutation candidates generated from passive discoveries"`
 	Error    string        `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
@@ -170,6 +175,17 @@ func buildMCPServer(ctx MCPCtx) *mcp.Server {
 		},
 		func(r []SubfinderEntry) subfinderOutput { return subfinderOutput{Findings: r} },
 		func(e string) subfinderOutput { return subfinderOutput{Error: e} }))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "find_domains",
+		Description: "Discover sibling top-level-domain variants for an organisation name by resolving it against ~1,450 TLDs (e.g. example.io, example.net alongside example.com). Free, unconfigured DNS-based discovery — no API keys, no requests to the target itself (tldfinder).",
+	}, gated(ctx, "find_domains",
+		func(in subfinderInput) string { return in.Domain },
+		func(c context.Context, in subfinderInput) ([]TldfinderEntry, error) {
+			return RunTldfinder(c, in.Domain)
+		},
+		func(r []TldfinderEntry) tldfinderOutput { return tldfinderOutput{Findings: r} },
+		func(e string) tldfinderOutput { return tldfinderOutput{Error: e} }))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "resolve_dns",

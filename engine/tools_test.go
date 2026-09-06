@@ -194,6 +194,40 @@ func TestRunSubfinder_PropagatesError(t *testing.T) {
 	}
 }
 
+func TestRunTldfinder_ParsesJSONL(t *testing.T) {
+	line1 := `{"host":"example.io","input":"example.com","sources":["dnsx"]}`
+	line2 := `{"host":"example.net","input":"example.com","sources":["dnsx"]}`
+	malformed := `{bad json`
+	withExecJSONL(t,
+		[][]string{{line1, line2, malformed}},
+		[]error{nil},
+	)
+	findings, err := RunTldfinder(context.Background(), "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("want 2 findings (malformed skipped), got %d", len(findings))
+	}
+	if findings[0].Host != "example.io" {
+		t.Errorf("findings[0].Host=%q, want example.io", findings[0].Host)
+	}
+	if len(findings[1].Sources) == 0 || findings[1].Sources[0] != "dnsx" {
+		t.Errorf("findings[1].Sources=%v, want [dnsx]", findings[1].Sources)
+	}
+}
+
+func TestRunTldfinder_PropagatesError(t *testing.T) {
+	withExecJSONL(t,
+		[][]string{nil},
+		[]error{errors.New("tldfinder: not found")},
+	)
+	_, err := RunTldfinder(context.Background(), "example.com")
+	if err == nil {
+		t.Error("expected error from failed subprocess, got nil")
+	}
+}
+
 func TestRunAlterx_ParsesOutput(t *testing.T) {
 	subLine1 := `{"host":"api.example.com","sources":["crtsh"]}`
 	subLine2 := `{"host":"mail.example.com","sources":["dnsdumpster"]}`

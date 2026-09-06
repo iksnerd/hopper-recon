@@ -17,6 +17,7 @@ ARG TLSX_VERSION=v1.3.0
 ARG CDNCHECK_VERSION=v1.3.0
 ARG URLFINDER_VERSION=v0.0.3
 ARG ALTERX_VERSION=v0.1.0
+ARG TLDFINDER_VERSION=v0.0.2
 
 # Cache mounts keep the module download cache and build artifact cache on the host
 # between runs — first build is slow, subsequent rebuilds skip the network entirely
@@ -29,7 +30,8 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     go install github.com/projectdiscovery/tlsx/cmd/tlsx@${TLSX_VERSION} && \
     go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@${CDNCHECK_VERSION} && \
     go install github.com/projectdiscovery/urlfinder/cmd/urlfinder@${URLFINDER_VERSION} && \
-    go install github.com/projectdiscovery/alterx/cmd/alterx@${ALTERX_VERSION}
+    go install github.com/projectdiscovery/alterx/cmd/alterx@${ALTERX_VERSION} && \
+    go install github.com/projectdiscovery/tldfinder/cmd/tldfinder@${TLDFINDER_VERSION}
 
 # Separate layer: engine module downloads. Invalidated only when go.mod/go.sum
 # change, not when source changes.
@@ -67,10 +69,11 @@ COPY --from=builder /go/bin/tlsx /usr/local/bin/tlsx
 COPY --from=builder /go/bin/cdncheck /usr/local/bin/cdncheck
 COPY --from=builder /go/bin/urlfinder /usr/local/bin/urlfinder
 COPY --from=builder /go/bin/alterx /usr/local/bin/alterx
+COPY --from=builder /go/bin/tldfinder /usr/local/bin/tldfinder
 COPY --from=builder /app/hopper-recon /usr/local/bin/hopper-recon
 
 # Ensure binaries are executable
-RUN chmod +x /usr/local/bin/subfinder /usr/local/bin/dnsx /usr/local/bin/httpx /usr/local/bin/tlsx /usr/local/bin/cdncheck /usr/local/bin/urlfinder /usr/local/bin/alterx /usr/local/bin/hopper-recon
+RUN chmod +x /usr/local/bin/subfinder /usr/local/bin/dnsx /usr/local/bin/httpx /usr/local/bin/tlsx /usr/local/bin/cdncheck /usr/local/bin/urlfinder /usr/local/bin/alterx /usr/local/bin/tldfinder /usr/local/bin/hopper-recon
 
 EXPOSE 8080
 VOLUME ["/data"]

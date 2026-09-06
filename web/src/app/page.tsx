@@ -4,6 +4,7 @@ import pkg from "../../package.json"
 
 const CAPABILITIES = [
   { label: "SUBDOMAINS", tool: "passive_subdomains", desc: "osint enumeration via subfinder" },
+  { label: "DOMAINS",    tool: "find_domains",       desc: "sibling tld discovery via tldfinder" },
   { label: "DNS",        tool: "resolve_dns",        desc: "a/aaaa/cname/mx/txt records via dnsx" },
   { label: "TLS",        tool: "fetch_tls_cert",     desc: "cert · cn · sans · expiry via tlsx" },
   { label: "HTTP",       tool: "probe_http",         desc: "stack detection via httpx @ 50 rps" },
@@ -86,7 +87,7 @@ export default function Home() {
 
       <footer className="border-t border-border px-6 py-3 flex items-center justify-between">
         <span className="text-micro tracking-widest uppercase text-muted-foreground-3">tier 1 + tier 2 tools only — strictly non-invasive</span>
-        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">powered by subfinder · dnsx · tlsx · httpx · cdncheck · urlfinder · alterx</span>
+        <span className="text-micro tracking-widest uppercase text-muted-foreground-3">powered by subfinder · tldfinder · dnsx · tlsx · httpx · cdncheck · urlfinder · alterx</span>
       </footer>
     </div>
   )

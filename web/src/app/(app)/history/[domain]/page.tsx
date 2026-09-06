@@ -14,8 +14,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
-  type SubdomainResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
+  parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
@@ -107,6 +107,7 @@ export default function DomainDetailPage() {
   }
 
   const subRaw    = summary ? get("passive_subdomains") : null
+  const domainsRaw = summary ? get("find_domains")       : null
   const dnsRaw    = summary ? get("resolve_dns")        : null
   const tlsRaw    = summary ? get("fetch_tls_cert")     : null
   const httpRaw   = summary ? get("probe_http")         : null
@@ -116,6 +117,7 @@ export default function DomainDetailPage() {
   const resolvedMutRaw = summary ? get("resolve_mutations")  : null
 
   const subdomains:    SubdomainResult | null    = subRaw         ? parseSubdomains({ results: subRaw })           : null
+  const domains:       DomainsResult | null      = domainsRaw     ? parseDomains({ results: domainsRaw })          : null
   const dns:           DnsResult | null          = dnsRaw         ? parseDns({ results: dnsRaw })                  : null
   const tls:           TlsResult | null          = tlsRaw         ? parseTls({ results: tlsRaw })                  : null
   const http:          HttpResult | null         = httpRaw        ? parseHttp({ results: httpRaw })                 : null
@@ -280,6 +282,37 @@ export default function DomainDetailPage() {
                   {subdomains.sourceCounts.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-1">
                       {subdomains.sourceCounts.map(({ source, count }) => (
+                        <DataChip key={source} className="px-1.5">{source} {count}</DataChip>
+                      ))}
+                    </div>
+                  )}
+                </Panel>
+              )}
+
+              {/* Sibling apex domains */}
+              {domains && domains.findings.length > 0 && (
+                <Panel
+                  label={`// DOMAINS [${domains.findings.length}]`}
+                  variant="inset"
+                  action={<ToolSourceLink name="tldfinder" url="https://github.com/projectdiscovery/tldfinder" />}
+                >
+                  <div className="space-y-px max-h-[600px] overflow-y-auto border border-border bg-card-inset">
+                    {domains.findings.map(({ host, sources }) => (
+                      <div key={host} className="group text-data px-2 py-0.5 flex items-center gap-2 hover:bg-card-hover transition-colors duration-100">
+                        <span className="text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{host}</span>
+                        <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{sources.join(", ")}</span>
+                        <Link
+                          href={`/dashboard?domain=${encodeURIComponent(host)}`}
+                          className="shrink-0 text-micro text-muted-foreground-3 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-100 border border-border px-1.5 py-px"
+                        >
+                          &gt;_ scan
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                  {domains.sourceCounts.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-1">
+                      {domains.sourceCounts.map(({ source, count }) => (
                         <DataChip key={source} className="px-1.5">{source} {count}</DataChip>
                       ))}
                     </div>

@@ -25,6 +25,16 @@ export interface DnsResult {
   securityTxt: { spf: boolean; dmarc: boolean; dkim: boolean }
 }
 
+export interface DomainEntry {
+  host: string
+  sources: string[]
+}
+
+export interface DomainsResult {
+  findings: DomainEntry[]
+  sourceCounts: { source: string; count: number }[]
+}
+
 export interface TlsResult {
   host: string
   ip: string
@@ -161,6 +171,29 @@ export function parseSubdomains(apiResult: unknown): SubdomainResult {
     categories: Object.entries(categoryCounts)
       .map(([category, count]) => ({ category, count }))
       .sort((a, b) => b.count - a.count),
+    sourceCounts: Object.entries(sourceCounts)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count),
+  }
+}
+
+// tldfinder resolves the same organisation label against ~1,450 TLDs and
+// emits one line per sibling apex domain that actually exists — sideways
+// discovery (example.io alongside example.com), unlike subfinder which
+// expands below a known apex. Same {host, sources} shape as SubdomainEntry.
+export function parseDomains(apiResult: unknown): DomainsResult {
+  const raw = apiResult as { results: Array<DomainEntry> }
+  const findings = raw?.results ?? []
+
+  const sourceCounts: Record<string, number> = {}
+  for (const { sources } of findings) {
+    for (const src of sources) {
+      sourceCounts[src] = (sourceCounts[src] ?? 0) + 1
+    }
+  }
+
+  return {
+    findings,
     sourceCounts: Object.entries(sourceCounts)
       .map(([source, count]) => ({ source, count }))
       .sort((a, b) => b.count - a.count),
