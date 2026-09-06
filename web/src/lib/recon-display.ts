@@ -9,7 +9,14 @@ export function certDaysCls(days: number): string {
 }
 
 export function certDaysLabel(days: number): { label: string; cls: string } {
-  return { label: `${days}d`, cls: certDaysCls(days) }
+  const label = days < 0 ? `expired ${-days}d ago` : `${days}d`
+  return { label, cls: certDaysCls(days) }
+}
+
+/** Same as `certDaysLabel`, but the non-expired case reads "Nd remaining" — for the validity-bar caption rather than a compact stat chip. */
+export function certValidityLabel(days: number): { label: string; cls: string } {
+  if (days < 0) return certDaysLabel(days)
+  return { label: `${days}d remaining`, cls: certDaysCls(days) }
 }
 
 export function httpStatusCls(code: number): string {

@@ -6,15 +6,18 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, Cell, LabelList,
 } from "recharts"
+import {
+  ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
+} from "@/components/ui/chart"
 import {
   parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
   type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
-import { TOOLTIP_STYLE, chartFill, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
+import { chartFill, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
 import {
   ReconCard,
@@ -455,46 +458,61 @@ function DashboardInner() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Panel label={"// BY CATEGORY"}>
                           {scan.subdomains.categories.length > 0 ? (
-                            <ChartBoundary label="categories"><ResponsiveContainer width="100%" height={200}>
-                              <BarChart data={scan.subdomains.categories} layout="vertical" margin={{ left: 16 }}>
-                                <XAxis type="number" hide />
-                                <YAxis
-                                  type="category"
-                                  dataKey="category"
-                                  width={110}
-                                  tick={CHART_TICK}
-                                />
-                                <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
-                                <Bar dataKey="count" radius={0}>
-                                  {scan.subdomains.categories.map((_, i) => (
-                                    <Cell key={i} fill={chartFill(i)} />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer></ChartBoundary>
+                            <ChartBoundary label="categories">
+                              <ChartContainer config={SUB_CAT_CONFIG} className="h-[200px] w-full aspect-auto">
+                                <BarChart data={scan.subdomains.categories} layout="vertical" margin={{ left: 16 }}>
+                                  <XAxis type="number" hide />
+                                  <YAxis
+                                    type="category"
+                                    dataKey="category"
+                                    width={110}
+                                    tick={CHART_TICK}
+                                  />
+                                  <ChartTooltip
+                                    cursor={CHART_CURSOR}
+                                    content={<ChartTooltipContent className="rounded-none shadow-none" hideLabel />}
+                                  />
+                                  <Bar dataKey="count" radius={0}>
+                                    {scan.subdomains.categories.map((_, i) => (
+                                      <Cell key={i} fill={chartFill(i)} />
+                                    ))}
+                                    {/* Long-tail category data (e.g. mutation-heavy scans where
+                                        "Other" dwarfs every named category) leaves most bars
+                                        sub-pixel regardless of palette — the count label makes
+                                        those rows legible even when the bar itself is invisible. */}
+                                    <LabelList dataKey="count" position="right" className="fill-foreground text-micro" />
+                                  </Bar>
+                                </BarChart>
+                              </ChartContainer>
+                            </ChartBoundary>
                           ) : (
                             <p className="text-body text-muted-foreground py-6">no categorized subdomains</p>
                           )}
                         </Panel>
                         <Panel label={"// BY SOURCE"}>
                           {scan.subdomains.sourceCounts.length > 0 ? (
-                            <ChartBoundary label="sources"><ResponsiveContainer width="100%" height={200}>
-                              <BarChart data={scan.subdomains.sourceCounts} layout="vertical" margin={{ left: 16 }}>
-                                <XAxis type="number" hide />
-                                <YAxis
-                                  type="category"
-                                  dataKey="source"
-                                  width={110}
-                                  tick={CHART_TICK}
-                                />
-                                <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
-                                <Bar dataKey="count" radius={0}>
-                                  {scan.subdomains.sourceCounts.map((_, i) => (
-                                    <Cell key={i} fill={chartFill(i)} />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer></ChartBoundary>
+                            <ChartBoundary label="sources">
+                              <ChartContainer config={SOURCE_CONFIG} className="h-[200px] w-full aspect-auto">
+                                <BarChart data={scan.subdomains.sourceCounts} layout="vertical" margin={{ left: 16 }}>
+                                  <XAxis type="number" hide />
+                                  <YAxis
+                                    type="category"
+                                    dataKey="source"
+                                    width={110}
+                                    tick={CHART_TICK}
+                                  />
+                                  <ChartTooltip
+                                    cursor={CHART_CURSOR}
+                                    content={<ChartTooltipContent className="rounded-none shadow-none" hideLabel />}
+                                  />
+                                  <Bar dataKey="count" radius={0}>
+                                    {scan.subdomains.sourceCounts.map((_, i) => (
+                                      <Cell key={i} fill={chartFill(i)} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ChartContainer>
+                            </ChartBoundary>
                           ) : (
                             <p className="text-body text-muted-foreground py-6">no source data — legacy scan format</p>
                           )}
@@ -561,18 +579,23 @@ function DashboardInner() {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Panel label={"// IP DISTRIBUTION"}>
-                        <ChartBoundary label="ip-dist"><ResponsiveContainer width="100%" height={200}>
-                          <BarChart data={scan.dns.ipDistribution}>
-                            <XAxis dataKey="prefix" tick={CHART_TICK_SM} />
-                            <YAxis allowDecimals={false} tick={CHART_TICK} />
-                            <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
-                            <Bar dataKey="count" radius={0}>
-                              {scan.dns.ipDistribution.map((_, i) => (
-                                <Cell key={i} fill={chartFill(i)} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer></ChartBoundary>
+                        <ChartBoundary label="ip-dist">
+                          <ChartContainer config={IP_DIST_CONFIG} className="h-[200px] w-full aspect-auto">
+                            <BarChart data={scan.dns.ipDistribution}>
+                              <XAxis dataKey="prefix" tick={CHART_TICK_SM} />
+                              <YAxis allowDecimals={false} tick={CHART_TICK} />
+                              <ChartTooltip
+                                cursor={CHART_CURSOR}
+                                content={<ChartTooltipContent className="rounded-none shadow-none" hideLabel />}
+                              />
+                              <Bar dataKey="count" radius={0}>
+                                {scan.dns.ipDistribution.map((_, i) => (
+                                  <Cell key={i} fill={chartFill(i)} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ChartContainer>
+                        </ChartBoundary>
                       </Panel>
                       <Panel
                         label={"// RECORDS"}
@@ -1064,10 +1087,14 @@ function RecentTargetTile({ summary, onScan }: { summary: DomainSummary; onScan:
         )}
         {certDays != null && (
           <span className={`text-micro tabular-nums ${certDaysLabel(certDays).cls}`}>
-            cert {certDays}d
+            cert {certDaysLabel(certDays).label}
           </span>
         )}
       </div>
     </button>
   )
 }
+
+const SUB_CAT_CONFIG = { count: { label: "Count" } } satisfies ChartConfig
+const SOURCE_CONFIG = { count: { label: "Count" } } satisfies ChartConfig
+const IP_DIST_CONFIG = { count: { label: "IPs" } } satisfies ChartConfig

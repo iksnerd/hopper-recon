@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, Cell,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Cell, LabelList,
 } from "recharts"
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
@@ -29,7 +29,7 @@ import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { GeoGlobe } from "@/components/recon/geo-globe"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
-import { certDaysCls, httpStatusCls } from "@/lib/recon-display"
+import { certDaysCls, certDaysLabel, certValidityLabel, httpStatusCls } from "@/lib/recon-display"
 
 function elapsed(started: string, completed: string | null) {
   if (!completed) return "—"
@@ -299,7 +299,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
         <div className="hidden md:flex items-center gap-0 text-body divide-x divide-border">
           {subdomains && <Stat label="SUBS" value={subdomains.findings.length.toString()} />}
           {dns && <Stat label="IPS" value={dns.a.length.toString()} />}
-          {tls && <Stat label="CERT EXPIRY" value={`${tls.daysLeft}d`} cls={certDaysCls(tls.daysLeft)} title={tls.daysLeft < 14 ? "Expires soon — renew immediately" : tls.daysLeft < 30 ? "Expiring within 30 days — schedule renewal" : "Certificate is valid"} />}
+          {tls && <Stat label="CERT EXPIRY" value={certDaysLabel(tls.daysLeft).label} cls={certDaysCls(tls.daysLeft)} title={tls.daysLeft < 0 ? "Certificate has expired — renew immediately" : tls.daysLeft < 14 ? "Expires soon — renew immediately" : tls.daysLeft < 30 ? "Expiring within 30 days — schedule renewal" : "Certificate is valid"} />}
           {http && <Stat label="HTTP" value={`[${http.status_code}]`} cls={httpStatusCls(http.status_code)} />}
         </div>
 
@@ -309,7 +309,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
         <div className="flex md:hidden items-center gap-3 text-micro tabular-nums basis-full order-last pl-5">
           {subdomains && <span className="text-muted-foreground-2">{subdomains.findings.length} subs</span>}
           {dns && <span className="text-muted-foreground-2">{dns.a.length} ips</span>}
-          {tls && <span className={certDaysCls(tls.daysLeft)}>cert {tls.daysLeft}d</span>}
+          {tls && <span className={certDaysCls(tls.daysLeft)}>cert {certDaysLabel(tls.daysLeft).label}</span>}
           {http && <span className={httpStatusCls(http.status_code)}>[{http.status_code}]</span>}
         </div>
         {http?.tech && http.tech.length > 0 && (
@@ -400,6 +400,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
                           {subdomains.categories.map((_, i) => (
                             <Cell key={i} fill={chartFill(i)} />
                           ))}
+                          <LabelList dataKey="count" position="right" className="fill-foreground text-micro" />
                         </Bar>
                       </BarChart>
                     </ChartContainer>
@@ -585,7 +586,7 @@ function CertBar({ tls }: { tls: TlsResult }) {
       <div className="h-1 bg-card-hover">
         <div className="h-full bg-foreground" style={{ width: `${pct}%` }} />
       </div>
-      <p className={`text-body font-bold mt-1.5 ${certDaysCls(tls.daysLeft)}`}>{tls.daysLeft}d remaining</p>
+      <p className={`text-body font-bold mt-1.5 ${certDaysCls(tls.daysLeft)}`}>{certValidityLabel(tls.daysLeft).label}</p>
     </div>
   )
 }

@@ -105,9 +105,14 @@ export function Breadcrumb({
               </BreadcrumbSeparator>
               <BreadcrumbItem className={cn(last ? "min-w-0" : "shrink-0")}>
                 {last ? (
-                  <BreadcrumbPage className="font-mono text-body text-foreground font-bold uppercase tracking-wide truncate">
-                    {item.label}
-                  </BreadcrumbPage>
+                  // The leaf segment is the page's real identity (no page has
+                  // its own visible <h1> otherwise), so it doubles as one —
+                  // `contents` keeps it out of the flex layout entirely.
+                  <h1 className="contents">
+                    <BreadcrumbPage className="font-mono text-body text-foreground font-bold uppercase tracking-wide truncate">
+                      {item.label}
+                    </BreadcrumbPage>
+                  </h1>
                 ) : item.href ? (
                   <BreadcrumbLink
                     asChild

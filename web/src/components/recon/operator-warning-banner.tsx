@@ -76,7 +76,7 @@ export function OperatorWarningBanner({ className }: { className?: string }) {
           href="/settings"
           className="text-foreground hover:text-terminal-green underline underline-offset-2 transition-colors"
         >
-          Configure in Settings →
+          See Settings for how to lock this down →
         </Link>
       </span>
       <button

@@ -8,7 +8,7 @@ import { queryKeys } from "@/lib/query-keys"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, Cell,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Cell, LabelList,
 } from "recharts"
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
@@ -31,7 +31,7 @@ import { FindingsStrip } from "@/components/recon/findings-strip"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { GeoGlobe } from "@/components/recon/geo-globe"
-import { certDaysCls, httpStatusCls } from "@/lib/recon-display"
+import { certDaysCls, certDaysLabel, certValidityLabel, httpStatusCls } from "@/lib/recon-display"
 
 // Build a DomainSummary from raw rows (DESC order — first seen per tool = most recent)
 function buildSummary(rows: ScanRow[], domain: string): DomainSummary {
@@ -205,7 +205,7 @@ export default function DomainDetailPage() {
               <div className="flex flex-wrap items-center gap-x-8 gap-y-2 ml-auto">
                 {subdomains && <StatChip label="SUBS"  value={subdomains.findings.length.toString()} />}
                 {dns         && <StatChip label="IPS"   value={dns.a.length.toString()} />}
-                {tls         && <StatChip label="CERT"  value={`${tls.daysLeft}d`} cls={certDaysCls(tls.daysLeft)} />}
+                {tls         && <StatChip label="CERT"  value={certDaysLabel(tls.daysLeft).label} cls={certDaysCls(tls.daysLeft)} />}
                 {http        && <StatChip label="HTTP"  value={`[${http.status_code}]`} cls={httpStatusCls(http.status_code)} />}
               </div>
             </div>
@@ -261,6 +261,7 @@ export default function DomainDetailPage() {
                             {subdomains.categories.map((_, i) => (
                               <Cell key={i} fill={chartFill(i)} />
                             ))}
+                            <LabelList dataKey="count" position="right" className="fill-foreground text-micro" />
                           </Bar>
                         </BarChart>
                       </ChartContainer>
@@ -566,7 +567,7 @@ function CertBar({ tls }: { tls: TlsResult }) {
       <div className="h-1 bg-card-hover">
         <div className="h-full bg-foreground" style={{ width: `${pct}%` }} />
       </div>
-      <p className={`text-body font-bold mt-2 ${certDaysCls(tls.daysLeft)}`}>{tls.daysLeft}d remaining</p>
+      <p className={`text-body font-bold mt-2 ${certDaysCls(tls.daysLeft)}`}>{certValidityLabel(tls.daysLeft).label}</p>
     </div>
   )
 }

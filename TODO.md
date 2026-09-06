@@ -261,14 +261,20 @@ before editing rather than trusting them exactly.
       single bar still visible in dark mode disappears completely in light. `TOOLTIP_STYLE`
       likewise paints a `#111111` tooltip on a white page. Fix the stale comment along with
       the values; it's the line that misleads the next reader.
-- [ ] **Dashboard bypasses `ChartContainer`; history uses it.** The history pages wrap charts
-      in shadcn's `ChartContainer`, which injects per-theme CSS vars and is exactly the fix
-      for the item above. The dashboard uses raw `ResponsiveContainer` + `Tooltip`. Same data,
-      two different tooltip treatments. Standardise on `ChartContainer`.
-- [ ] **Long-tail data defeats the category chart regardless of color.** "Other" is ~24k of
-      24,956, so every other category is sub-pixel even with the palette fixed. Either label
-      values as text, use a log scale, or drop the chart for a count table. Worth checking the
-      categoriser separately — putting 96% of hosts in "Other" is its own bug.
+- [x] **Dashboard bypasses `ChartContainer`; history uses it.** (fixed 2026-09-06) All three
+      dashboard chart sites (BY CATEGORY, BY SOURCE, IP DISTRIBUTION) now use `ChartContainer` +
+      `ChartTooltip`/`ChartTooltipContent`, matching the pattern already used on both history
+      pages. `ResponsiveContainer` + raw `Tooltip` + `TOOLTIP_STYLE` removed from the dashboard
+      entirely — `chart-style.ts` still supplies `CHART_TICK`/`CHART_CURSOR` to both.
+- [x] **Long-tail data defeats the category chart regardless of color.** (fixed 2026-09-06)
+      Added `<LabelList dataKey="count" position="right">` to the category bar in all three
+      call sites (dashboard, history list, history detail) — the count renders as text next to
+      the bar regardless of how many pixels the bar itself gets, so a sub-pixel "Infrastructure"
+      row next to a 24k-wide "Other" bar is still legible. Verified live against `iana.org`
+      (real subfinder data, 111 "Other" vs. single digits elsewhere) — every row shows its
+      count. Did not touch the categoriser: an 11-pattern prefix list will always leave most
+      real-world hostnames uncategorised, and that's a fundamentally different problem than
+      "the chart hides data," so it wasn't in scope here.
 
 ### Layout / a11y
 
@@ -282,23 +288,39 @@ before editing rather than trusting them exactly.
       back its width, which costs nothing since the sidebar logo already links home.
       Verified across 4 widths x 3 routes by measuring adjacent bounding boxes for overlap,
       spill past the header edge, and document overflow: 12/12 clean.
-- [ ] **No `h1` on any page.** The highest heading is the `h3` inside `ReconCardTitle`; page
-      identity lives only in the breadcrumb nav.
+- [x] **No `h1` on any page.** (fixed 2026-09-06) The leaf breadcrumb segment — already the
+      page's real identity everywhere (`DASHBOARD`/scan target, `HISTORY`/domain, `SETTINGS`,
+      `ABOUT`) — is now wrapped in `<h1 className="contents">` in `page-header.tsx`'s shared
+      `Breadcrumb`. `contents` keeps it out of the flex layout entirely, so nothing visually
+      changes; verified via a11y snapshot that every route now reports a `heading level="1"`.
 - [ ] **Blank metric cell while loading.** During a scan the SUBDOMAINS `MetricCell` renders
       empty while its siblings show values, which reads as broken rather than pending.
       `skeleton` is vendored and used once.
+      **Not reproduced on inspection** — `MetricCell` already renders a blinking-cursor
+      placeholder (`loading ? <cursor-blink>█ : value`), and all four dashboard `MetricCell`
+      calls pass `loading={scan.states.<tool> === "loading"}` correctly; `EMPTY_STATES`
+      defaults every tool to `"loading"` so there's no gap before the first paint either. Live
+      re-check on a real scan (not just error/complete snapshots) still needed to confirm
+      there's no narrower timing window this misses — engine was down for the rest of this
+      session.
 
 ### Product friction
 
-- [ ] **Settings is read-only, but the app sends users there to configure.** The unscoped
-      advisory banner links "Configure in Settings →" to a page with no controls — every value
-      is an engine env var. Either make scope/cooldown editable (needs an engine write
-      endpoint) or change the banner to say where the setting actually lives.
+- [x] **Settings is read-only, but the app sends users there to configure.** (fixed 2026-09-06)
+      Reworded the advisory banner link from "Configure in Settings →" to "See Settings for how
+      to lock this down →" — doesn't imply an in-app control that doesn't exist. Making
+      scope/cooldown actually editable still needs an engine write endpoint; not done here.
 - [ ] **Hydration mismatch on `/settings`.** React error #418 in the console on navigation.
       `OperatorWarningBanner` is not the cause (it uses `useSyncExternalStore` with a proper
       server snapshot). Needs a dev build to localise.
-- [ ] **`cert -29d` is cryptic.** Negative days for an expired cert reads as a puzzle on the
-      RECENT TARGETS tiles; "expired 29d ago" doesn't.
+- [x] **`cert -29d` is cryptic.** (fixed 2026-09-06) `recon-display.ts`'s `certDaysLabel` now
+      reads `expired Nd ago` for negative `daysLeft` instead of `-Nd`; new `certValidityLabel`
+      helper covers the "Nd remaining" progress-bar caption variant so the flip isn't duplicated
+      per call site. Fixed 5 call sites total: the RECENT TARGETS tile (which wasn't even using
+      the label helper — it interpolated `daysLeft` raw, the actual bug), plus the CERT EXPIRY
+      stat, the mobile compact stat, and the validity-bar caption on both history pages.
+      Verified live: cloudflare.com / github.com RECENT TARGETS tiles now read "cert expired
+      29d ago" / "expired 35d ago".
 
 ### Primitive coverage
 
