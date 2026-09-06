@@ -125,6 +125,70 @@ hopper-recon version                        # NEW
 
 ---
 
+## Planned — ProjectDiscovery tool expansion
+
+Audit of the PD org against the [tool admission policy](CLAUDE.md) (must be useful to an
+unconfigured first-time user; keys may be optional enrichment, never required) and the
+passive-recon posture the README advertises. Seven PD binaries are in today:
+subfinder, dnsx, httpx, tlsx, cdncheck, urlfinder, alterx.
+
+### Admitted — worth adding
+
+- [ ] **`tldfinder`** — MIT, passive, no key required. Discovers sibling root domains for an
+      org (`-dm domain`), which nothing currently in the set does: subfinder expands *below*
+      a known apex, tldfinder expands *sideways* to apexes we don't know about. Optional
+      censys/whoisxmlapi keys widen sources; the free sources (waybackarchive, hackertarget)
+      work unconfigured — same posture as subfinder. Feeds discovered apexes back into the
+      normal scan pipeline. New scan tool + dashboard tab.
+- [ ] **`mapcidr`** — MIT, pure local CIDR math, zero network egress. Turns the ASN/CIDR data
+      httpx (`-asn`) and cdncheck already return into enumerable host ranges. Enrichment-only,
+      like `lookup_geoip` — a helper on existing results, not its own scan tab.
+
+### Needs a decision before building
+
+- [ ] **`vulnx`** — MIT, works unauthenticated (rate-limited); PDCP key is optional, so it
+      clears admission. Would key off the CPEs httpx `-cpe` already returns to surface known
+      CVEs per detected technology. **The catch:** this moves the product from asset discovery
+      into vulnerability intel, which is a scope change, not a new tab. Decide whether
+      hopper-recon wants that before writing code.
+
+### Rejected — with reasons
+
+- **`naabu`, `katana`, `nuclei`** — all send traffic *at* the target (port scan, crawl, vuln
+  probe). Breaks the passive-recon posture; would require a consent/authorization gate and a
+  rewrite of the abuse-mitigation story. Out of scope for the current product.
+- **`shuffledns`** — GPL-3.0 (repo is MIT) and needs the massdns C binary, which `go install`
+  can't provide. Two build/licensing problems for a capability alterx + dnsx already
+  approximate via `resolve_mutations`.
+- **`asnmap`, `uncover`, `chaos-client`, `cloudlist`** — all require credentials to return
+  anything (PDCP / Shodan-Censys-FOFA / PDCP / cloud provider keys). Fail admission; asnmap
+  and uncover were already removed in v0.2 for this reason.
+- **`notify`** — an output sink needing per-user Slack/Discord/Telegram config, not a recon
+  tool. If notifications are ever wanted, they belong in the engine, not as a scan tool.
+- **`depx`** — targets GitHub repos, not domains. Wrong input type for this product.
+- **`dnsprobe`** — archived upstream; superseded by dnsx, which is already in.
+- **`wappalyzergo`** — no action needed. It's a library, and httpx already exposes it through
+  the `-td` / `-cpe` flags `RunHttpx` passes.
+
+### Supply-chain hygiene (found during the audit)
+
+- [x] **Pin the PD binaries in `engine/Dockerfile`** (2026-09-06) — all seven installed with
+      `@latest`, so the version baked into an image depended on when the layer cache last
+      missed: builds weren't reproducible and there was no record of what shipped. Now pinned
+      via `ARG <TOOL>_VERSION` at the top of the builder stage, so a bump is a one-line edit
+      and CI can override with `--build-arg`. Pinned at subfinder v2.16.0, dnsx v1.3.1,
+      httpx v1.11.0, tlsx v1.3.0, cdncheck v1.3.0, urlfinder v0.0.3, alterx v0.1.0. Image
+      rebuilt and all seven smoke-tested against `example.com` with the exact flag sets
+      `tools.go` passes — no flag drift across the tlsx and cdncheck minor bumps.
+
+  > **Don't trust `<tool> -version` to check a pin.** Several PD tools hardcode a banner
+  > constant that lags their own git tag — tlsx v1.3.0 self-reports `v1.2.2`, cdncheck v1.3.0
+  > reports `v1.2.52`, and dnsx prints nothing parseable. The authoritative check is the module
+  > version stamped in the binary:
+  > `docker build --target builder -t b:tmp engine && docker run --rm --entrypoint go b:tmp version -m /go/bin/tlsx`
+
+---
+
 ## Follow-ups
 - [ ] Empty state illustrations for history / dashboard
 - [ ] **CLA bot** — [cla-assistant.io](https://cla-assistant.io/) protects ability to relicense if going SaaS later
