@@ -16,8 +16,8 @@ import (
 
 // Version is single-sourced here so MCP server metadata (main.go) and the
 // outbound httpx User-Agent (below) agree at build time. Override at link
-// time with `-ldflags "-X main.Version=v0.3.3"` for tagged releases.
-var Version = "v0.3.4"
+// time with `-ldflags "-X main.Version=v0.4.0"` for tagged releases.
+var Version = "v0.4.0"
 
 const geoipDbPath = "/root/.config/hopper-recon/GeoLite2-Country.mmdb"
 

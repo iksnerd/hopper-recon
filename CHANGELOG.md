@@ -6,6 +6,17 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-06
+
+### Added
+
+- **`find_domains` (tldfinder) — scan tool #9** — discovers sibling apex domains for an organisation. subfinder expands *below* a known apex; this expands *sideways* to apexes you don't know about. Uses tldfinder's `-dm tld` mode, which brute-forces the org label across ~1,450 IANA TLDs and resolves each candidate via dnsx — no API key required. (`-dm domain` mode was evaluated and rejected: both its sources, whoisxmlapi and whoxy, need paid keys and return nothing unconfigured.) Surfaced as a DOMAINS panel on dashboard and history detail, with `scan →` links that feed a discovered apex back into the pipeline.
+- **Dev mock engine (`npm run dev:mock`)** — runs the dashboard with no Docker, no recon binaries, and no traffic to real hosts. `web/mocks/engine.mjs` speaks the same REST surface as the engine, so nothing under `src/` changes and every code path stays production-shaped. Fixtures are real captured engine output (8 domains, all 9 tools); unknown targets are synthesised deterministically; `huge.test` yields ~23.5k subdomains for list-perf work; `MOCK_FAIL` forces per-tool failures. Refuses to start under `NODE_ENV=production` and is excluded from the Docker build context.
+
+### Changed
+
+- **ProjectDiscovery binaries pinned in `engine/Dockerfile`** — every one installed with `@latest`, so the version baked into an image depended on when the build cache last missed: builds weren't reproducible and there was no record of what shipped. Now pinned via `ARG <TOOL>_VERSION`, so a bump is a one-line edit and changing it invalidates the install layer. Pinned at subfinder v2.16.0, dnsx v1.3.1, httpx v1.11.0, tlsx v1.3.0, cdncheck v1.3.0, urlfinder v0.0.3, alterx v0.1.0, tldfinder v0.0.2. Note that `<tool> -version` is unreliable for verifying a pin — several PD tools hardcode a banner constant that lags their own git tag; use `go version -m` on the binary.
+
 ### Fixed
 
 - **Dashboard self-collided on the per-target cooldown** — v0.3.3 made `passive_subdomains`, `expand_subdomains`, and `resolve_mutations` share a cooldown surface because all three run subfinder internally. But the dashboard fans those tools out in one parallel scan, and the agent workflow runs discover → expand → resolve in sequence — so whichever wrote its `allowed` audit row first made the others 429 (intermittently, on a first-ever scan). The cross-tool implication fought the product's own design; removed it. The per-`(target, tool)` cooldown stays: repeating the *same* tool against the same target within 60s is still blocked.
@@ -206,7 +217,9 @@ All gates apply equally to direct MCP callers (Claude Code / Cline / stdio agent
 - **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + GitHub issue / PR templates.
 - **`CLAUDE.md`** — agent guide for the codebase. The repo is consciously LLM-coding-friendly.
 
-[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/iksnerd/hopper-recon/compare/v0.3.4...v0.4.0
+[0.3.4]: https://github.com/iksnerd/hopper-recon/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/iksnerd/hopper-recon/compare/v0.3.1...v0.3.3
 [0.3.2]: https://github.com/iksnerd/hopper-recon/compare/v0.3.1...v0.3.3
 [0.3.1]: https://github.com/iksnerd/hopper-recon/compare/v0.3.0...v0.3.1

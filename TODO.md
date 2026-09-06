@@ -7,8 +7,9 @@ The shortest road to "a company can deploy this on their Kubernetes cluster, fre
 2. **v0.2.0 engine refactor** ✓ — engine owns SQLite + recon tools, web is thin HTTP client
 3. **v0.3.0 alterx** ✓ — expand_subdomains tool + OSS polish (repo public, CI, screenshots, releases)
 4. **v0.3.2 mutations UX** ✓ — resolve_mutations, DKIM enumeration, scan→ links (2026-05-24)
-5. **v0.4.0 Cobra CLI** — `hopper-recon scan <tool> <target>`, `history`, `version` subcommands
-6. **v0.5.0 Self-hosted auth** — Auth.js OIDC + email magic-link, `AUTH_MODE` env switch
+4b. **v0.4.0 find_domains + UI fixes** ✓ — tldfinder as tool #9, chart/list/breadcrumb fixes, dev mock engine (2026-09-06). Shipping a new scan tool made this a minor bump, which pushed the Cobra CLI and auth milestones down one.
+5. **v0.5.0 Cobra CLI** — `hopper-recon scan <tool> <target>`, `history`, `version` subcommands
+6. **v0.6.0 Self-hosted auth** — Auth.js OIDC + email magic-link, `AUTH_MODE` env switch
 
 Pricing target: marginal cost on existing cluster ≈ $0/mo; standalone tiny cluster (Hetzner CX11 or Oracle Free Tier ARM) $0–5/mo.
 
@@ -88,7 +89,7 @@ _(none)_
 - [x] **Structured JSON logs** — `slog.SetDefault(slog.NewJSONHandler(os.Stderr, nil))` in `main()`; startup + shutdown messages converted to `slog.Info` key-value pairs; `log.Fatalf` fatals still route through slog automatically
 - [x] **TODO housekeeping** — all shipped v0.2.0 engine + web items ticked; stale unchecked items corrected
 
-## Planned — v0.4.0 Cobra CLI
+## Planned — v0.5.0 Cobra CLI
 
 Replace the hand-rolled `os.Args` dispatch in `engine/main.go` with a proper [Cobra](https://github.com/spf13/cobra) command tree. All existing modes keep working identically.
 
@@ -120,8 +121,8 @@ hopper-recon version                        # NEW
 - [ ] Create `engine/cmd_version.go` — 15-line `version` command
 - [ ] Add `RunAlterxFromList` to `engine/tools.go`
 - [ ] Write `engine/cmd_scan_test.go` and `engine/cmd_history_test.go`
-- [ ] Bump `Version` to `v0.4.0` in `tools.go` and `web/package.json`
-- [ ] `CHANGELOG.md` entry for v0.4.0
+- [ ] Bump `Version` to `v0.5.0` in `tools.go` and `web/package.json`
+- [ ] `CHANGELOG.md` entry for v0.5.0
 
 ---
 
