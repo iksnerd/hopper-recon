@@ -83,11 +83,15 @@
   --border: oklch(0.72 0 0);
   --input: oklch(0.72 0 0);
   --ring: oklch(0.50 0 0);
+  /* Categorical bar fills. Every step clears 3:1 against --card so no series
+     renders invisible; the old ramp ran down to oklch(0.87), which was 1.21:1
+     on the light card. Charts label each bar on the axis, so these carry no
+     meaning of their own and cycle (i % len) rather than clamping. */
   --chart-1: oklch(0.10 0 0);
-  --chart-2: oklch(0.38 0 0);
-  --chart-3: oklch(0.58 0 0);
-  --chart-4: oklch(0.74 0 0);
-  --chart-5: oklch(0.87 0 0);
+  --chart-2: oklch(0.29 0 0);
+  --chart-3: oklch(0.41 0 0);
+  --chart-4: oklch(0.51 0 0);
+  --chart-5: oklch(0.59 0 0);
   --radius: 0;
   --sidebar: var(--card);
   --sidebar-foreground: oklch(0.25 0 0);
@@ -125,11 +129,13 @@
   --border: oklch(0.22 0 0);
   --input: oklch(0.22 0 0);
   --ring: oklch(0.42 0 0);
+  /* See the light-theme note above. The old tail (0.28 / 0.18) sat at 1.42:1
+     and 1.10:1 against --card, i.e. invisible. */
   --chart-1: oklch(0.96 0 0);
-  --chart-2: oklch(0.62 0 0);
-  --chart-3: oklch(0.42 0 0);
-  --chart-4: oklch(0.28 0 0);
-  --chart-5: oklch(0.18 0 0);
+  --chart-2: oklch(0.82 0 0);
+  --chart-3: oklch(0.70 0 0);
+  --chart-4: oklch(0.60 0 0);
+  --chart-5: oklch(0.51 0 0);
   --sidebar: var(--card);
   --sidebar-foreground: oklch(0.85 0 0);
   --sidebar-primary: var(--terminal-green);

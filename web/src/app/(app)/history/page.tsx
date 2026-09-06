@@ -21,7 +21,7 @@ import {
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
 import { formatDistanceToNow } from "date-fns"
-import { CHART_FILLS, CHART_CURSOR, CHART_TICK_SM } from "@/lib/chart-style"
+import { CHART_FILLS, chartFill, CHART_CURSOR, CHART_TICK_SM } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
 import { PageHeader } from "@/components/recon/page-header"
 import { DataChip } from "@/components/recon/data-chip"
@@ -398,7 +398,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
                         />
                         <Bar dataKey="count" radius={0}>
                           {subdomains.categories.map((_, i) => (
-                            <Cell key={i} fill={CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]} />
+                            <Cell key={i} fill={chartFill(i)} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -438,7 +438,7 @@ function DomainCard({ data, open, onToggle, onRescan }: {
                         />
                         <Bar dataKey="count" radius={0}>
                           {dns.ipDistribution.map((_, i) => (
-                            <Cell key={i} fill={CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]} />
+                            <Cell key={i} fill={chartFill(i)} />
                           ))}
                         </Bar>
                       </BarChart>

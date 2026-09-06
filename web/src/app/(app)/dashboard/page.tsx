@@ -15,7 +15,7 @@ import {
 import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
-import { TOOLTIP_STYLE, CHART_FILLS, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
+import { TOOLTIP_STYLE, chartFill, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
 import { Panel } from "@/components/recon/panel"
 import {
   ReconCard,
@@ -467,7 +467,7 @@ function DashboardInner() {
                                 <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
                                 <Bar dataKey="count" radius={0}>
                                   {scan.subdomains.categories.map((_, i) => (
-                                    <Cell key={i} fill={CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]} />
+                                    <Cell key={i} fill={chartFill(i)} />
                                   ))}
                                 </Bar>
                               </BarChart>
@@ -490,7 +490,7 @@ function DashboardInner() {
                                 <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
                                 <Bar dataKey="count" radius={0}>
                                   {scan.subdomains.sourceCounts.map((_, i) => (
-                                    <Cell key={i} fill={CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]} />
+                                    <Cell key={i} fill={chartFill(i)} />
                                   ))}
                                 </Bar>
                               </BarChart>
@@ -578,7 +578,7 @@ function DashboardInner() {
                             <Tooltip cursor={CHART_CURSOR} contentStyle={TOOLTIP_STYLE} />
                             <Bar dataKey="count" radius={0}>
                               {scan.dns.ipDistribution.map((_, i) => (
-                                <Cell key={i} fill={CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]} />
+                                <Cell key={i} fill={chartFill(i)} />
                               ))}
                             </Bar>
                           </BarChart>

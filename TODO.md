@@ -218,14 +218,23 @@ before editing rather than trusting them exactly.
 
 ### Charts
 
-- [ ] **Fills clamp to near-black past the 4th series.**
+- [x] **Fills clamp to near-black past the 4th series.** (fixed 2026-09-06)
       `CHART_FILLS[Math.min(i, CHART_FILLS.length - 1)]` sends every index ≥ 4 to `#222222`,
       which sits on `--card: oklch(0.10)` (≈ `#191919`). BY CATEGORY renders 8 rows, BY
       SOURCE renders 9, so most bars are invisible. Seven call sites: `dashboard:470,493,581`,
       `history/page:401,441`, `history/[domain]:261,391`. Fix is `i % CHART_FILLS.length`,
       and `#222222` should leave the palette entirely — it has no usable contrast on the card
       in either theme.
-- [ ] **Chart palette is dark-theme-only, so light theme erases the bars.**
+      **Fixed:** both bugs shared one cause, so they were fixed together.
+      `chart-style.ts` now references `var(--chart-1..5)` instead of hardcoded hexes
+      (`var()` resolves fine in recharts SVG fills and inline tooltip styles — the old
+      comment claiming otherwise was wrong, and is corrected in the file). The ramp in
+      globals.css was retuned so every step clears 3:1 against `--card` in both themes;
+      the old tails (dark `oklch(0.28)`/`oklch(0.18)`, light `oklch(0.74)`/`oklch(0.87)`)
+      were 1.10–1.87:1, i.e. invisible. New `chartFill(i)` helper cycles with `%` instead
+      of clamping, applied at all seven call sites. Verified headless in both themes:
+      10/10 bars resolve to a real colour and measure 3.61:1 or better.
+- [x] **Chart palette is dark-theme-only, so light theme erases the bars.** (fixed 2026-09-06)
       `lib/chart-style.ts` hardcodes hexes under a comment claiming they "mirror the CSS
       tokens in globals.css". They don't: globals.css defines both themes in oklch, and light
       `--card` is `oklch(0.93)`. `CHART_FILLS[0] = #f0f0f0` is invisible on it — verified, the
