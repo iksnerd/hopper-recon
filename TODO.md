@@ -205,7 +205,7 @@ before editing rather than trusting them exactly.
 
 ### Blocker
 
-- [ ] **Unbounded result lists lock up the tab.** `ALL SUBDOMAINS`
+- [x] **Unbounded result lists lock up the tab.** (fixed 2026-09-06) `ALL SUBDOMAINS`
       (`dashboard/page.tsx:511`) maps every finding into a `CopyableText` inside a
       `max-h-[280px] overflow-y-auto` box. On `example.com` that's 24,956 components. The
       page doesn't just get slow: `browser_evaluate` timed out at 120s twice, and
@@ -215,6 +215,26 @@ before editing rather than trusting them exactly.
       Needs a decision: virtualize (add a windowing dep) vs. paginate + filter (`pagination`,
       `command`, `input-group`, `scroll-area` are all vendored and unused). Either way a
       search box is required — 24,956 rows with no filter is unusable even when it renders.
+      **Fixed** with `components/recon/host-list.tsx` (`HostList`): a filter plus a 200-row
+      render cap with "show N more", applied to all 9 unbounded panels (5 on the dashboard,
+      4 on history detail). No new dependency — virtualization was considered and rejected:
+      it solves free linear scroll through 25k rows, which is not what anyone does with this
+      data, and it would not have supplied the filter that actually makes the panel usable.
+      The row component was half the problem: `CopyableText` carries three `useState` hooks
+      **and injects its own `<style>` block**, so the old list emitted 24,956 duplicate
+      `<style>` elements. `HostList` holds one `copiedKey` for the whole list.
+      Measured on the same example.com scan (24,956 subdomains) that wedged the tab before:
+
+      | | before | after |
+      |---|---|---|
+      | DOM nodes | (unmeasurable) | 2,559 |
+      | `<style>` tags | 24,956 | 1 |
+      | script eval round-trip | 120s timeout | 1 ms |
+      | navigate away | 60s timeout ×2 | 67 ms |
+      | filter to 191 matches | n/a | 97 ms |
+
+      Still worth adding later: an export / copy-all affordance. Seeing the full set means
+      clicking "show more" 125 times, and that is an export problem, not a scroll problem.
 
 ### Charts
 

@@ -24,6 +24,7 @@ import { CHART_FILLS, chartFill, CHART_CURSOR, CHART_TICK_SM } from "@/lib/chart
 import { Panel } from "@/components/recon/panel"
 import { PageHeader } from "@/components/recon/page-header"
 import { DataChip } from "@/components/recon/data-chip"
+import { HostList } from "@/components/recon/host-list"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
@@ -265,20 +266,16 @@ export default function DomainDetailPage() {
                       </ChartContainer>
                     </ChartBoundary>
                   )}
-                  <div className="space-y-px max-h-[600px] overflow-y-auto border border-border bg-card-inset">
-                    {subdomains.findings.map(({ host, sources }) => (
-                      <div key={host} className="group text-data px-2 py-0.5 flex items-center gap-2 hover:bg-card-hover transition-colors duration-100">
-                        <span className="text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{host}</span>
-                        <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{sources.join(", ")}</span>
-                        <Link
-                          href={`/dashboard?domain=${encodeURIComponent(host)}`}
-                          className="shrink-0 text-micro text-muted-foreground-3 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-100 border border-border px-1.5 py-px"
-                        >
-                          &gt;_ scan
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
+                  <HostList
+                    rows={subdomains.findings.map(({ host, sources }) => ({
+                      key: host,
+                      text: host,
+                      meta: sources.join(", "),
+                      href: `/dashboard?domain=${encodeURIComponent(host)}`,
+                    }))}
+                    maxHeight="max-h-[600px]"
+                    filterPlaceholder="filter subdomains…"
+                  />
                   {subdomains.sourceCounts.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-1">
                       {subdomains.sourceCounts.map(({ source, count }) => (
@@ -296,20 +293,16 @@ export default function DomainDetailPage() {
                   variant="inset"
                   action={<ToolSourceLink name="tldfinder" url="https://github.com/projectdiscovery/tldfinder" />}
                 >
-                  <div className="space-y-px max-h-[600px] overflow-y-auto border border-border bg-card-inset">
-                    {domains.findings.map(({ host, sources }) => (
-                      <div key={host} className="group text-data px-2 py-0.5 flex items-center gap-2 hover:bg-card-hover transition-colors duration-100">
-                        <span className="text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{host}</span>
-                        <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{sources.join(", ")}</span>
-                        <Link
-                          href={`/dashboard?domain=${encodeURIComponent(host)}`}
-                          className="shrink-0 text-micro text-muted-foreground-3 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-100 border border-border px-1.5 py-px"
-                        >
-                          &gt;_ scan
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
+                  <HostList
+                    rows={domains.findings.map(({ host, sources }) => ({
+                      key: host,
+                      text: host,
+                      meta: sources.join(", "),
+                      href: `/dashboard?domain=${encodeURIComponent(host)}`,
+                    }))}
+                    maxHeight="max-h-[600px]"
+                    filterPlaceholder="filter domains…"
+                  />
                   {domains.sourceCounts.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-1">
                       {domains.sourceCounts.map(({ source, count }) => (
@@ -481,14 +474,11 @@ export default function DomainDetailPage() {
                     ))}
                   </div>
                 )}
-                <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
-                  {urls.entries.map((e, i) => (
-                    <div key={`${e.url}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                      <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.url}</span>
-                      <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{e.source}</span>
-                    </div>
-                  ))}
-                </div>
+                <HostList
+                  rows={urls.entries.map((e, i) => ({ key: `${e.url}-${i}`, text: e.url, meta: e.source }))}
+                  maxHeight="max-h-[480px]"
+                  filterPlaceholder="filter urls…"
+                />
               </Panel>
             )}
 
@@ -499,13 +489,11 @@ export default function DomainDetailPage() {
                   unverified candidates — generated from known subdomains via alterx
                   <InfoTooltip text="Algorithmically generated subdomain variants (permutations of known subdomains). Unverified — none are confirmed to exist until resolved via DNS." />
                 </p>
-                <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
-                  {alterx.entries.map((e, i) => (
-                    <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                      <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.word}</span>
-                    </div>
-                  ))}
-                </div>
+                <HostList
+                  rows={alterx.entries.map((e, i) => ({ key: `${e.word}-${i}`, text: e.word }))}
+                  maxHeight="max-h-[480px]"
+                  filterPlaceholder="filter candidates…"
+                />
               </Panel>
             )}
 
@@ -517,20 +505,16 @@ export default function DomainDetailPage() {
                 action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
               >
                 <p className="text-micro text-muted-foreground-3 mb-3">mutation candidates confirmed live via DNS A record lookup</p>
-                <div className="space-y-px max-h-[480px] overflow-y-auto border border-border bg-card-inset">
-                  {resolvedMuts.entries.map((e, i) => (
-                    <div key={`${e.host}-${i}`} className="group flex items-center gap-3 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                      <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
-                      <span className="font-mono text-micro text-muted-foreground-3 shrink-0">{e.a[0]}</span>
-                      <Link
-                        href={`/dashboard?domain=${encodeURIComponent(e.host)}`}
-                        className="hidden group-hover:inline font-mono text-micro text-terminal-green hover:underline shrink-0"
-                      >
-                        scan →
-                      </Link>
-                    </div>
-                  ))}
-                </div>
+                <HostList
+                  rows={resolvedMuts.entries.map((e, i) => ({
+                    key: `${e.host}-${i}`,
+                    text: e.host,
+                    meta: e.a[0],
+                    href: `/dashboard?domain=${encodeURIComponent(e.host)}`,
+                  }))}
+                  maxHeight="max-h-[480px]"
+                  filterPlaceholder="filter live hosts…"
+                />
               </Panel>
             )}
 

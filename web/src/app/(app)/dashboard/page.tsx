@@ -12,7 +12,6 @@ import {
   parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
   type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
-import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { TOOLTIP_STYLE, chartFill, CHART_TICK, CHART_TICK_SM, CHART_CURSOR } from "@/lib/chart-style"
@@ -33,6 +32,7 @@ import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { CopyableText } from "@/components/ui/copyable-text"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
+import { HostList } from "@/components/recon/host-list"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -507,15 +507,10 @@ function DashboardInner() {
                         {scan.subdomains.findings.length === 0 ? (
                           <p className="text-body text-muted-foreground py-6">no subdomains found — api keys may expand coverage</p>
                         ) : (
-                          <div className="space-y-1 max-h-[280px] overflow-y-auto">
-                            {scan.subdomains.findings.map(({ host }) => (
-                              <CopyableText
-                                key={host}
-                                text={host}
-                                className="text-sm"
-                              />
-                            ))}
-                          </div>
+                          <HostList
+                            rows={scan.subdomains.findings.map(({ host }) => ({ key: host, text: host }))}
+                            filterPlaceholder="filter subdomains…"
+                          />
                         )}
                       </Panel>
                     </div>
@@ -544,19 +539,14 @@ function DashboardInner() {
                               ))}
                             </div>
                           )}
-                          <div className="space-y-px max-h-[280px] overflow-y-auto bg-card-inset">
-                            {scan.domains.findings.map((e) => (
-                              <div key={e.host} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                                <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
-                                <Link
-                                  href={`/dashboard?domain=${encodeURIComponent(e.host)}`}
-                                  className="hidden group-hover:inline font-mono text-micro text-terminal-green hover:underline shrink-0"
-                                >
-                                  scan →
-                                </Link>
-                              </div>
-                            ))}
-                          </div>
+                          <HostList
+                            rows={scan.domains.findings.map((e) => ({
+                              key: e.host,
+                              text: e.host,
+                              href: `/dashboard?domain=${encodeURIComponent(e.host)}`,
+                            }))}
+                            filterPlaceholder="filter domains…"
+                          />
                         </>
                       )}
                     </Panel>
@@ -803,14 +793,15 @@ function DashboardInner() {
                         {scan.urls.entries.length === 0 ? (
                           <p className="text-body text-muted-foreground py-6">no historical URLs found in passive sources</p>
                         ) : (
-                          <div className="space-y-px max-h-[480px] overflow-y-auto bg-card-inset">
-                            {scan.urls.entries.map((e, i) => (
-                              <div key={`${e.url}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                                <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.url}</span>
-                                <span className="text-muted-foreground-3 shrink-0 text-micro hidden group-hover:inline">{e.source}</span>
-                              </div>
-                            ))}
-                          </div>
+                          <HostList
+                            rows={scan.urls.entries.map((e, i) => ({
+                              key: `${e.url}-${i}`,
+                              text: e.url,
+                              meta: e.source,
+                            }))}
+                            maxHeight="max-h-[480px]"
+                            filterPlaceholder="filter urls…"
+                          />
                         )}
                       </Panel>
                     </div>
@@ -857,13 +848,11 @@ function DashboardInner() {
                               <span className="text-micro font-mono text-muted-foreground-3 animate-pulse">resolving…</span>
                             )}
                           </div>
-                          <div className="space-y-px max-h-[480px] overflow-y-auto bg-card-inset">
-                            {scan.alterx.entries.map((e, i) => (
-                              <div key={`${e.word}-${i}`} className="group flex items-center gap-2 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                                <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.word}</span>
-                              </div>
-                            ))}
-                          </div>
+                          <HostList
+                            rows={scan.alterx.entries.map((e, i) => ({ key: `${e.word}-${i}`, text: e.word }))}
+                            maxHeight="max-h-[480px]"
+                            filterPlaceholder="filter candidates…"
+                          />
                         </>
                       )}
                     </Panel>
@@ -883,20 +872,16 @@ function DashboardInner() {
                         no mutation candidates resolved — none of the generated names exist in DNS
                       </p>
                     ) : (
-                      <div className="space-y-px max-h-[480px] overflow-y-auto bg-card-inset">
-                        {scan.resolvedMuts.entries.map((e, i) => (
-                          <div key={`${e.host}-${i}`} className="group flex items-center gap-3 px-2 py-0.5 hover:bg-card-hover transition-colors duration-100">
-                            <span className="font-mono text-data text-muted-foreground-2 group-hover:text-foreground truncate flex-1 transition-colors duration-100">{e.host}</span>
-                            <span className="font-mono text-micro text-muted-foreground-3 shrink-0">{e.a[0]}</span>
-                            <Link
-                              href={`/dashboard?domain=${encodeURIComponent(e.host)}`}
-                              className="hidden group-hover:inline font-mono text-micro text-terminal-green hover:underline shrink-0"
-                            >
-                              scan →
-                            </Link>
-                          </div>
-                        ))}
-                      </div>
+                      <HostList
+                        rows={scan.resolvedMuts.entries.map((e, i) => ({
+                          key: `${e.host}-${i}`,
+                          text: e.host,
+                          meta: e.a[0],
+                          href: `/dashboard?domain=${encodeURIComponent(e.host)}`,
+                        }))}
+                        maxHeight="max-h-[480px]"
+                        filterPlaceholder="filter live hosts…"
+                      />
                     )}
                   </Panel>
                 )}
