@@ -332,7 +332,10 @@ but several unused ones map directly onto gaps above and elsewhere in this file:
 - [ ] `sonner` — no toast anywhere in the app; scan errors surface only inline in their panel,
       so an error on a panel scrolled off-screen is silent.
 - [ ] `progress` — scan progress is text-only (`SCANNING 4/7`).
-- [ ] `pagination` / `command` / `scroll-area` — see the blocker above.
+- [ ] `pagination` / `command` / `scroll-area` — still unused. The blocker above got fixed
+      with a custom filter + render cap in `HostList` instead of adopting these; a future win
+      would be swapping `HostList`'s hand-rolled filter input for `command`'s combobox, but
+      it's not required.
 
 ---
 
