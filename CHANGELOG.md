@@ -6,6 +6,12 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-09-07
+
+### Fixed
+
+- **Hydration mismatch (React #418) in light theme** — the sidebar theme toggle chose its icon with `(resolvedTheme ?? "dark") === "dark" ? <Sun/> : <Moon/>`. Pages are statically prerendered and `resolvedTheme` is `undefined` at build time, so the dark-theme icon was baked into the HTML for every visitor; a client in light theme rendered the other element and hydration failed. It fired on every route, not just `/settings` where it was first noticed, and dark-theme users never saw it. Both icons are now rendered with CSS choosing between them via the `dark:` variant, so no mismatch is possible. Note this only reproduces in a production build — `next dev` doesn't prerender.
+
 ## [0.4.0] — 2026-09-06
 
 ### Added
@@ -217,7 +223,8 @@ All gates apply equally to direct MCP callers (Claude Code / Cline / stdio agent
 - **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + GitHub issue / PR templates.
 - **`CLAUDE.md`** — agent guide for the codebase. The repo is consciously LLM-coding-friendly.
 
-[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/iksnerd/hopper-recon/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/iksnerd/hopper-recon/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/iksnerd/hopper-recon/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/iksnerd/hopper-recon/compare/v0.3.1...v0.3.3
