@@ -74,7 +74,8 @@ curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmd
      -o ~/.config/hopper-recon/GeoLite2-Country.mmdb
 
 # Bring up the stack (engine + web + Litestream sidecars)
-docker compose up -d --build
+# Pulls prebuilt multi-arch images from Docker Hub — no build toolchain needed.
+docker compose up -d
 
 # Open the dashboard
 open http://localhost:9120        # macOS
@@ -107,7 +108,7 @@ For one-shot stdio agents (Claude Desktop):
   "mcpServers": {
     "hopper-recon": {
       "command": "docker",
-      "args": ["run", "--rm", "-i", "hopper-recon:latest", "mcp"]
+      "args": ["run", "--rm", "-i", "iksnerd/hopper-recon:latest", "mcp"]
     }
   }
 }

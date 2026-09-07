@@ -17,7 +17,8 @@ mkdir -p ~/.config/hopper-recon
 curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb \
      -o ~/.config/hopper-recon/GeoLite2-Country.mmdb
 
-docker compose up -d --build
+# Pulls prebuilt multi-arch images (linux/amd64 + linux/arm64) from Docker Hub.
+docker compose up -d
 
 # Dashboard → http://localhost:9120
 # Engine REST + MCP → http://127.0.0.1:9119  (loopback only)
@@ -196,9 +197,23 @@ docker run --rm \
 ## Upgrade
 
 ```bash
-git pull
-docker compose build
+git pull                 # picks up the new pinned image version in docker-compose.yml
+docker compose pull
 docker compose up -d
+```
+
+`docker-compose.yml` pins a specific release (`iksnerd/hopper-recon:v0.4.1`).
+Override it without editing the file by setting `HOPPER_VERSION` in `.env`:
+
+```bash
+echo "HOPPER_VERSION=v0.4.0" >> .env   # roll back
+docker compose up -d
+```
+
+To run your own build instead of a published image, layer the build override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 Schema migrations run automatically on engine boot (`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE` ladder in `engine/db.go`). No manual migration steps required for patch and minor upgrades. Breaking schema changes will be called out in the CHANGELOG.

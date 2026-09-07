@@ -6,6 +6,10 @@
 #
 # Optional volume mounts on the engine pull in OSINT API keys and the
 # GeoLite2 mmdb when present on the host. Missing files degrade gracefully.
+#
+# `docker compose up -d` pulls prebuilt images from Docker Hub — no build
+# toolchain needed. Contributors who want to run their own changes add the
+# build override: `-f docker-compose.yml -f docker-compose.build.yml`.
 
 services:
   # One-shot init: pulls the most recent snapshot from the configured replica
@@ -25,9 +29,10 @@ services:
         required: false
 
   engine:
-    build:
-      context: ./engine
-    image: hopper-recon:latest
+    # Published multi-arch image (linux/amd64 + linux/arm64). Pin a different
+    # release with HOPPER_VERSION=v0.4.0 in .env, or build from source instead:
+    #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+    image: iksnerd/hopper-recon:${HOPPER_VERSION:-v0.4.1}
     restart: unless-stopped
     depends_on:
       litestream-restore:
@@ -78,9 +83,8 @@ services:
         required: false
 
   web:
-    build:
-      context: ./web
-    image: hopper-recon-web:latest
+    # See the engine service above for pinning / building from source.
+    image: iksnerd/hopper-recon-web:${HOPPER_VERSION:-v0.4.1}
     restart: unless-stopped
     depends_on:
       engine:

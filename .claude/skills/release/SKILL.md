@@ -11,8 +11,12 @@ Cut a new release: bump versions, commit, tag, push, and rebuild Docker images.
 
 - `engine/tools.go` — `var Version = "vX.Y.Z"` and the ldflags comment above it
 - `web/package.json` — `"version": "X.Y.Z"`
+- `docker-compose.yml` — the pinned image tags on the `engine` and `web` services
+  (`iksnerd/hopper-recon:${HOPPER_VERSION:-vX.Y.Z}` and the `-web` equivalent)
 
-Both must match. The git tag is the single source of truth for releases.
+All three must match. The git tag is the single source of truth for releases.
+Forgetting the compose pin ships a release whose `docker compose up -d` still
+runs the previous version.
 
 ## Determine the next version
 
@@ -54,6 +58,11 @@ var Version = "vX.Y.Z"
 In `web/package.json`:
 ```json
 "version": "X.Y.Z",
+```
+
+In `docker-compose.yml` (both services):
+```bash
+sed -i '' 's|:${HOPPER_VERSION:-vOLD}|:${HOPPER_VERSION:-vNEW}|g' docker-compose.yml
 ```
 
 Use sed rather than Edit (package.json may not have been read):
@@ -118,6 +127,65 @@ docker compose up -d --force-recreate engine web
 - Subsequent builds are fast (~1 min) — module cache and build artifacts are reused.
 - The web build context should be small (< 5 MB) because `web/.dockerignore` excludes `node_modules` and `.next`. If a build is sending >100 MB of context, check that `.dockerignore` exists in `web/`.
 - Both Dockerfiles use `# syntax=docker/dockerfile:1.7` and `--mount=type=cache` — DOCKER_BUILDKIT=1 is the default in Docker Desktop but set it explicitly if builds are ignoring caches.
+
+### 9b. Publish multi-arch images to Docker Hub
+
+Published as `iksnerd/hopper-recon` and `iksnerd/hopper-recon-web`, both
+`linux/amd64 + linux/arm64`. Requires `docker login` (interactive — ask the user
+to run it; check with `docker-credential-desktop get`, reading only `Username`).
+
+The default `desktop-linux` builder uses the `docker` driver and **cannot**
+produce multi-platform manifests — it will silently publish a single-arch image.
+Use a `docker-container` builder:
+
+```bash
+docker buildx create --name hopper-multiarch --driver docker-container \
+  --platform linux/amd64,linux/arm64
+docker buildx inspect hopper-multiarch --bootstrap
+```
+
+Engine builds both platforms in one pass:
+
+```bash
+docker buildx build --builder hopper-multiarch --platform linux/amd64,linux/arm64 \
+  -t iksnerd/hopper-recon:vX.Y.Z -t iksnerd/hopper-recon:latest --push engine
+```
+
+**The web image cannot.** buildx runs platforms in parallel, and two concurrent
+`next build` processes (one emulated) exceed Docker's memory — it dies with
+`cannot allocate memory`. Build the platforms separately and compose the
+manifest:
+
+```bash
+for arch in amd64 arm64; do
+  docker buildx build --builder hopper-multiarch --platform linux/$arch \
+    --output "type=image,name=docker.io/iksnerd/hopper-recon-web,push-by-digest=true,push=true" \
+    --metadata-file /tmp/web-$arch.json web
+done
+docker buildx imagetools create \
+  -t iksnerd/hopper-recon-web:vX.Y.Z -t iksnerd/hopper-recon-web:latest \
+  iksnerd/hopper-recon-web@<amd64-digest> iksnerd/hopper-recon-web@<arm64-digest>
+```
+
+Digests come from `containerimage.digest` in the metadata files.
+
+**Never pipe a build through `head` or `tail`.** `head` SIGPIPEs it partway, and
+both mask the exit code — a failed build reports success. Redirect to a log and
+check `$?`.
+
+Verify both manifests really carry both platforms before believing it:
+
+```bash
+docker buildx imagetools inspect iksnerd/hopper-recon:vX.Y.Z | grep Platform
+```
+
+(`unknown/unknown` entries are SBOM/provenance attestations, not a problem.)
+Then smoke-test the emulated arch, since that is the one you did not run:
+
+```bash
+docker run --rm --platform linux/amd64 --entrypoint sh iksnerd/hopper-recon:vX.Y.Z \
+  -c 'uname -m; subfinder -version'
+```
 
 ### 10. Confirm
 

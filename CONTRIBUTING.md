@@ -21,8 +21,10 @@ mkdir -p ~/.config/hopper-recon
 curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb \
      -o ~/.config/hopper-recon/GeoLite2-Country.mmdb
 
-# Bring up the stack (engine + web + Litestream sidecars)
-docker compose up -d --build
+# Bring up the stack (engine + web + Litestream sidecars).
+# Contributors want their own code, not the published images, so layer the
+# build override — plain `docker compose up -d` pulls from Docker Hub instead.
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 # Web at http://localhost:9120
 # Engine REST + MCP at http://127.0.0.1:9119 (loopback only)
@@ -31,8 +33,14 @@ docker compose up -d --build
 For tighter web iteration:
 
 ```bash
-docker compose up -d engine
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build engine
 cd web && npm install && npm run dev
+```
+
+For UI-only work you don't need the engine or Docker at all:
+
+```bash
+cd web && npm install && npm run dev:mock
 ```
 
 ## Pre-commit checks
@@ -49,7 +57,7 @@ gofmt -w .
 go vet ./...
 go build ./...
 go mod tidy            # after import changes
-docker compose build engine    # after any Go change
+docker compose -f docker-compose.yml -f docker-compose.build.yml build engine   # after any Go change
 ```
 
 **Web (`web/`)**

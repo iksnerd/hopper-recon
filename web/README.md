@@ -10,9 +10,12 @@ agent-facing guide.
 In compose (preferred — engine + Litestream sidecars come along for the ride):
 
 ```bash
-cd .. && docker compose up -d --build
+cd .. && docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 # Dashboard at http://localhost:9120
 ```
+
+(Plain `docker compose up -d` pulls the published images instead of building
+your working tree — fine for running the app, wrong for developing it.)
 
 Outside compose, against a host-bound engine:
 

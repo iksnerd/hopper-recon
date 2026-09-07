@@ -1,0 +1,22 @@
+# Build-from-source override for contributors.
+#
+# The base docker-compose.yml pulls published images from Docker Hub so a
+# plain `docker compose up -d` needs no build toolchain. Layer this file on top
+# to build the engine and web images from the working tree instead:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# The `image:` names here are local tags, deliberately unnamespaced so a local
+# build can never be confused with — or accidentally pushed over — a published
+# iksnerd/* image.
+
+services:
+  engine:
+    build:
+      context: ./engine
+    image: hopper-recon:latest
+
+  web:
+    build:
+      context: ./web
+    image: hopper-recon-web:latest
