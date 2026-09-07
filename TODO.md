@@ -305,10 +305,19 @@ before editing rather than trusting them exactly.
 
 ### Product friction
 
-- [x] **Settings is read-only, but the app sends users there to configure.** (fixed 2026-09-06)
-      Reworded the advisory banner link from "Configure in Settings →" to "See Settings for how
-      to lock this down →" — doesn't imply an in-app control that doesn't exist. Making
-      scope/cooldown actually editable still needs an engine write endpoint; not done here.
+- [x] **Settings is read-only, but the app sends users there to configure.** (fixed 2026-09-06,
+      completed 2026-09-07) First pass reworded the advisory banner link from "Configure in
+      Settings →" to "See Settings for how to lock this down →", so it no longer implies a
+      control that doesn't exist. Second pass added a `// CONFIGURE` panel that makes the page
+      actionable rather than merely honest: per setting, the exact env line with a copy button,
+      where to put it (`./.env`), and the command to apply it.
+      **Deliberately still read-only.** `LoadPolicy` reads env once at boot and hands handlers
+      an immutable `*Policy`, so editing would need a reloadable policy, persistence in `/data`
+      (the .env bind is host-side), and a write endpoint. That endpoint would be
+      unauthenticated today, and what it would edit is the scope filter and the gov/mil
+      blocklist — the abuse guardrails. Revisit after auth lands in v0.6.0.
+      The panel is also honest about what is *not* an env var: cooldown is the compile-time
+      `cooldownSeconds` const, auth doesn't exist yet, and the geo DB is a file.
 - [x] **Hydration mismatch (React #418).** (fixed 2026-09-06) Originally logged here as a
       `/settings` bug; it was app-wide. It fired on **every** route, but only in light theme,
       which is why it looked route-specific — I happened to be on `/settings` right after

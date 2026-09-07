@@ -4,6 +4,7 @@ import * as React from "react"
 import { Panel } from "@/components/recon/panel"
 import { PageHeader } from "@/components/recon/page-header"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
+import { CopyButton } from "@/components/recon/copy-button"
 import type { EngineConfig } from "@/lib/engine-client"
 
 function StatusBadge({ ok, okLabel, failLabel }: { ok: boolean; okLabel: string; failLabel: string }) {
@@ -20,6 +21,44 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <TableCell className="p-0 py-1.5 pr-6 text-muted-foreground tracking-widest uppercase whitespace-nowrap w-40 align-top">{label}</TableCell>
       <TableCell className="p-0 py-1.5 text-foreground whitespace-normal">{children}</TableCell>
     </TableRow>
+  )
+}
+
+/**
+ * One configurable knob: the env line to set, and where to put it.
+ *
+ * The engine reads its policy once at boot (`LoadPolicy` in engine/policy.go),
+ * so there is deliberately no in-app editing — a write endpoint would be
+ * unauthenticated today and the things it would edit are the abuse guardrails
+ * (scope filter, gov/mil blocklist). Operator-controlled via .env is the point,
+ * not a limitation. This panel exists so the page tells you exactly what to
+ * change instead of naming a variable and leaving you to grep for it.
+ */
+function EnvSetting({
+  env,
+  what,
+  applies = "engine",
+}: {
+  env: string
+  what: React.ReactNode
+  applies?: "engine" | "web"
+}) {
+  return (
+    <div className="py-2 first:pt-0 last:pb-0 border-b border-border last:border-b-0">
+      <p className="text-body text-muted-foreground-2">{what}</p>
+      <div className="mt-1.5 flex items-start gap-2">
+        {/* whitespace-pre-line so a two-line snippet renders as two lines;
+            without it HTML collapses the newline and it reads as one var. */}
+        <code className="flex-1 min-w-0 break-all whitespace-pre-line bg-card-inset border border-border px-2 py-1 text-data text-terminal-green">
+          {env}
+        </code>
+        <CopyButton value={env} className="mt-1 shrink-0" />
+      </div>
+      <p className="mt-1 text-micro text-muted-foreground-3">
+        add to <span className="text-muted-foreground">./.env</span> next to docker-compose.yml, then{" "}
+        <span className="text-muted-foreground">docker compose up -d --force-recreate {applies}</span>
+      </p>
+    </div>
   )
 }
 
@@ -77,6 +116,42 @@ export default function SettingsPage() {
               </TableBody>
             </Table>
           )}
+        </Panel>
+
+        {/* How to change the things above */}
+        <Panel label="// CONFIGURE">
+          <p className="text-body text-muted-foreground-3 mb-3">
+            The engine reads its policy once at startup, so these are set as environment
+            variables rather than edited here — the scope filter and blocklist are abuse
+            guardrails, and an in-app control would be unauthenticated until auth lands.
+          </p>
+          <EnvSetting
+            env="HOPPER_ALLOWED_DOMAINS=example.com,example.org"
+            what={
+              config?.has_scope
+                ? "Scope is enforced. Change the list of apex domains the engine will scan; anything else returns 403 and an audit row."
+                : "Restrict the engine to specific apex domains. Anything else returns 403 and an audit row. Currently unset, so any domain is scannable."
+            }
+          />
+          <EnvSetting
+            env={"HOPPER_OVERRIDE_BLOCKLIST=true\nHOPPER_BLOCKLIST_OVERRIDE_REASON=Engagement #1234, authorization on file"}
+            what="Allow probing *.gov / *.mil / *.gouv.fr / *.gov.uk / *.go.jp / *.gc.ca / *.gov.au, which are refused by default. Both lines are required — a missing reason leaves protection on — and every override is recorded in audit_log."
+          />
+          <div className="pt-2 mt-1 border-t border-border space-y-1">
+            <p className="text-micro text-muted-foreground-3">
+              <span className="text-muted-foreground">COOLDOWN</span> is a compile-time constant
+              (<span className="text-muted-foreground">cooldownSeconds</span> in engine/server.go),
+              not an environment variable — changing it needs a rebuild.
+            </p>
+            <p className="text-micro text-muted-foreground-3">
+              <span className="text-muted-foreground">AUTH</span> is not implemented yet. Put the
+              dashboard behind a VPN, Tailscale, or Cloudflare Access; see DEPLOY.md.
+            </p>
+            <p className="text-micro text-muted-foreground-3">
+              <span className="text-muted-foreground">GEO DB</span> is a file, not a variable —
+              place GeoLite2-Country.mmdb in ~/.config/hopper-recon/ on the host.
+            </p>
+          </div>
         </Panel>
 
         {/* Scan tools */}
