@@ -6,6 +6,16 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-09-07
+
+### Added
+
+- **Settings page tells you how to change things** — it showed live engine state and named the env vars, then stopped, so you learned the scope filter was off and were left to work out how to turn it on. A new `CONFIGURE` panel gives each setting its exact env line with a copy button, the file to put it in (`./.env`), and the command to apply it. It stays read-only deliberately: `LoadPolicy` reads env once at boot, so in-app editing would need a reloadable policy, persistence in `/data`, and a write endpoint — and that endpoint would be unauthenticated today while editing the scope filter and gov/mil blocklist, which are the abuse guardrails. Revisit after auth lands. The panel is also explicit about what is *not* an env var: cooldown is the compile-time `cooldownSeconds` const, auth isn't implemented yet, and the geo DB is a file.
+
+### Changed
+
+- **`docker compose up -d` installs from published images** — pulls `iksnerd/hopper-recon` and `iksnerd/hopper-recon-web` from Docker Hub (both `linux/amd64` + `linux/arm64`) instead of building from source, so getting the app running needs no Go or Node toolchain. Images are pinned to a release rather than `:latest`, so installs are reproducible and rollback is one env var (`HOPPER_VERSION=v0.4.1`). Building from source is still fully supported via `docker-compose.build.yml`, layered on with `-f docker-compose.yml -f docker-compose.build.yml`; CONTRIBUTING and `web/README.md` point contributors at it, since a plain `up -d` would otherwise silently run published images rather than their changes.
+
 ## [0.4.1] — 2026-09-07
 
 ### Fixed
@@ -223,7 +233,8 @@ All gates apply equally to direct MCP callers (Claude Code / Cline / stdio agent
 - **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + GitHub issue / PR templates.
 - **`CLAUDE.md`** — agent guide for the codebase. The repo is consciously LLM-coding-friendly.
 
-[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/iksnerd/hopper-recon/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/iksnerd/hopper-recon/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/iksnerd/hopper-recon/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/iksnerd/hopper-recon/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/iksnerd/hopper-recon/compare/v0.3.3...v0.3.4
