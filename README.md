@@ -26,7 +26,7 @@ Self-hosted — `docker compose up`, SQLite for storage, no external services. A
 - **MCP-native engine** — exposes the same tools at `/mcp` so AI agents drive recon directly; the dashboard is just one consumer
 - **Findings strip** — auto-triages expired certs, missing SPF/DMARC, HTTPS→HTTP downgrades, sensitive subdomains
 - **Geo globe** — IP → country via bundled MaxMind GeoLite2 (offline), rendered with [cobe](https://cobe.vercel.app)
-- **Self-hosted** — `docker compose up` to a working install. SQLite for storage, no external services required
+- **Self-hosted** — `docker compose up -d` pulls prebuilt multi-arch images (amd64 + arm64); no Go or Node toolchain needed. SQLite for storage, no external services required
 - **Continuous backup via Litestream** — WAL streaming to a local file volume by default; flip a config block to replicate to S3 / R2 / Azure Blob / GCS instead
 - **No Docker socket on the web** — the web container talks to the engine over HTTP, so it runs on platforms that forbid privileged containers (Cloud Run, Fly Machines, k8s rootless, etc.)
 
@@ -188,6 +188,7 @@ Full reference + commented Litestream cloud-replica blocks live in [`.env.exampl
 
 | Env / file | Default | Purpose |
 |---|---|---|
+| `HOPPER_VERSION` | current release (pinned in `docker-compose.yml`) | Which published image tag to run. Set in `.env` to pin or roll back: `HOPPER_VERSION=v0.4.1` |
 | `ENGINE_URL` | `http://127.0.0.1:9119` (dev) / `http://engine:8080` (compose) | Where the web finds the engine |
 | `HOPPER_DB_PATH` | `/data/scans.db` | SQLite path inside the engine container |
 | `HOPPER_ADDR` | `:8080` | Engine HTTP listen address |
@@ -219,7 +220,9 @@ See [TODO.md](./TODO.md).
 - **v0.1.0** ✓ — MIT license, CI, SECURITY.md, abuse mitigations (gov/mil blocklist, cooldown, audit log, scope filter, advisory banner)
 - **v0.2.0** ✓ — engine owns SQLite + all recon tools, web is a thin HTTP client, MCP at `/mcp` for AI agents
 - **v0.3.0** ✓ — alterx (`expand_subdomains` / `resolve_mutations`) mutation tools, OSS polish, Litestream backups
-- **Next** — self-hosted auth (Auth.js — OIDC + email magic-link), `/admin` route, audit-log viewer
+- **v0.4.0** ✓ — tldfinder (`find_domains`) as tool #9, published multi-arch images on Docker Hub, dev mock engine
+- **v0.5.0** — Cobra CLI: `hopper-recon scan <tool> <target>`, `history`, `version` subcommands
+- **v0.6.0** — self-hosted auth (Auth.js — OIDC + email magic-link), `/admin` route, audit-log viewer
 
 ---
 

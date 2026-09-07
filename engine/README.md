@@ -3,7 +3,7 @@
 Go server that wraps a small set of [projectdiscovery](https://github.com/projectdiscovery) OSINT binaries plus a local MaxMind GeoIP lookup. Speaks two transports off the same binary:
 
 - **HTTP** (`hopper-recon serve`, compose default) — REST API for the dashboard plus MCP at `/mcp` for AI agents that want to attach to a long-running engine. Owns SQLite at `/data/scans.db`.
-- **stdio MCP** (`hopper-recon mcp`, no DB) — for one-shot AI agent invocations like `docker run --rm -i hopper-recon:latest mcp` from Claude Desktop / Cline.
+- **stdio MCP** (`hopper-recon mcp`, no DB) — for one-shot AI agent invocations like `docker run --rm -i iksnerd/hopper-recon:latest mcp` from Claude Desktop / Cline.
 
 ## Tools
 
@@ -12,9 +12,12 @@ Go server that wraps a small set of [projectdiscovery](https://github.com/projec
 | `passive_subdomains` | subfinder | `{ domain }` | `[{ host, sources[] }]` | `-all -cs` for source attribution |
 | `resolve_dns` | dnsx | `{ target }` | parsed JSON record | A/AAAA/CNAME/NS/MX/TXT, CDN + ASN; merges `_dmarc.<host>` TXT into apex |
 | `fetch_tls_cert` | tlsx | `{ target }` | parsed JSON record | SAN/CN/cipher/wildcard/expired/self-signed |
-| `probe_http` | httpx | `{ target }` | parsed JSON record | Title, tech, JARM, ASN, redirect chain, 50 rps cap, custom `hopper-recon/0.2.0` UA |
+| `probe_http` | httpx | `{ target }` | parsed JSON record | Title, tech, JARM, ASN, redirect chain, 50 rps cap, custom `hopper-recon/<version>` UA (built from `Version` in tools.go) |
 | `check_cdn` | cdncheck | `{ target }` | `[{ ip, cdn/cloud/waf, *_name }]` | Pure offline CIDR-list lookup — bundled `sources_data.json`, no network calls beyond the DNS resolution embedded in cdncheck itself |
 | `find_urls` | urlfinder | `{ domain }` | `[{ url, source }]` | Passive URL discovery via waybackarchive / commoncrawl / alienvault. Uses `-jsonl` (urlfinder's flag, not the `-json` other PD tools take) |
+| `find_domains` | tldfinder | `{ domain }` | `[{ host, sources[] }]` | Sibling apex discovery. `-dm tld` brute-forces the org label across ~1,450 IANA TLDs and resolves each via dnsx — no API key. (`-dm domain` mode is unusable unconfigured: both its sources need paid keys.) |
+| `expand_subdomains` | alterx | `{ domain }` | `[{ word }]` | Permutation wordlist from known subdomains. Pure local transform, no network. Capped at 5000 entries |
+| `resolve_mutations` | alterx + dnsx | `{ domain }` | `[{ host, a[] }]` | subfinder → alterx → dnsx `-a`; returns only candidates with a live A record |
 | `lookup_geoip` | oschwald/geoip2-golang | `{ ips: "1.2.3.4,5.6.7.8" }` | `[{ ip, country }]` | Reads MaxMind GeoLite2-Country.mmdb. Anycast IPs (Cloudflare / AWS / Google) intentionally have no country attribution and produce no entry. |
 
 Tools previously shipped (`map_asn`, `search_hosts`) were removed in v0.2 because they require API keys to function (PDCP auth, Shodan/Censys/FOFA keys). The admission rule: tools must produce useful output for an unconfigured first-time user.
@@ -51,12 +54,13 @@ go build -o hopper-recon .
 ./hopper-recon mcp                                       # stdio MCP, no DB
 ```
 
-The projectdiscovery binaries (`subfinder`, `dnsx`, `httpx`, `tlsx`, `cdncheck`, `urlfinder`) need to be on `$PATH` — `go install github.com/projectdiscovery/<tool>/cmd/<tool>@latest`.
+The projectdiscovery binaries (`subfinder`, `dnsx`, `httpx`, `tlsx`, `cdncheck`, `urlfinder`, `alterx`, `tldfinder`) need to be on `$PATH`. The Dockerfile pins each one via an `ARG <TOOL>_VERSION`; match those pins rather than using `@latest` if you want your local run to behave like the container.
 
 ### Container (compose, what the dashboard uses)
 
 ```bash
-docker compose up -d --build engine
+# Build the engine from this working tree (plain `up -d` pulls the published image)
+docker compose -f ../docker-compose.yml -f ../docker-compose.build.yml up -d --build engine
 curl http://127.0.0.1:9119/healthz       # → ok
 curl http://127.0.0.1:9119/scans          # → []
 ```
@@ -66,7 +70,7 @@ The compose file binds `:8080` (container) to `127.0.0.1:9119` (host). The web s
 ### Container (stdio MCP, for one-shot AI agents)
 
 ```bash
-docker run --rm -i hopper-recon:latest mcp
+docker run --rm -i iksnerd/hopper-recon:latest mcp
 ```
 
 Speaks JSON-RPC over stdio. No DB, no persistence — every call is independent.
@@ -102,6 +106,5 @@ docker compose build engine    # after any Go change
 
 ## Roadmap
 
-- Per-tool unit tests against canned binary output (today the tools are exercised only end-to-end through the web app).
 - Once the tool count grows past ~10, split `tools.go` into `internal/tools/{subfinder,…}.go`.
 - USER 1000:1000 + non-root container hardening (v0.1 prod-deploy item).
