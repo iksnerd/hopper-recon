@@ -8,6 +8,7 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`.gitleaks.toml` disabled every gitleaks rule** — the file defined only an `[allowlist]`, and without `[extend] useDefault = true` gitleaks swaps its built-in rules for an empty set, so any scan run from the repo root reported "no leaks found" no matter what. The config now extends the defaults. A full scan of all 83 commits and of the tracked tree with real rules is clean, and the existing Shodan/Censys/FOFA allowlist entry is still needed (it's the one finding without it).
 - **`docker compose up -d` pinned an image that was never published** — v0.4.2 bumped the compose pin to `v0.4.2`, but the web image failed to build for `linux/amd64` and was never pushed, so a fresh install could not pull `iksnerd/hopper-recon-web:v0.4.2`. The pin is back on `v0.4.1`, whose engine and web images are both published for amd64 and arm64. **Skip v0.4.2**: the git tag is fine, but there is no complete image set for it. The compose pin will move forward again once the web image builds and is verified on the registry — publishing first, pinning second.
 
 ## [0.4.2] — 2026-09-07

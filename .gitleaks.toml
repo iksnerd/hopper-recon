@@ -1,6 +1,11 @@
 # Gitleaks configuration for hopper-recon.
 # False positives confirmed and suppressed below.
 
+# Start from gitleaks' built-in rules. Without this [extend] block the file
+# replaces the defaults with an empty rule set, and every scan passes silently.
+[extend]
+  useDefault = true
+
 [allowlist]
   description = "Confirmed false positives"
   # engine/README.md:20 — "Shodan/Censys/FOFA keys" is a prose list of
