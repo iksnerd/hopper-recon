@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/oschwald/geoip2-golang"
 )
@@ -154,12 +155,134 @@ func mergeTxtLines(dst []any, lines []string) []any {
 	return dst
 }
 
-// RunDnsx resolves a domain and merges _dmarc.<domain> TXT records and common
-// DKIM selector TXT records into the apex result so the parser can detect
-// DMARC and DKIM presence without knowing which selector the domain uses.
+// mailPolicyNames lists the mail-policy TXT records queried alongside the apex:
+// the DNS name is prefix + domain, and the result lands under key in the
+// "mail_policy" object of the apex result.
+var mailPolicyNames = []struct{ key, prefix string }{
+	{"mta_sts", "_mta-sts."},
+	{"tls_rpt", "_smtp._tls."},
+	{"bimi", "default._bimi."},
+}
+
+// txtLookup resolves the TXT records of a name. lookupTXT is the resolver used
+// to chase SPF include chains; tests swap it for a fake.
+type txtLookup func(ctx context.Context, name string) ([]string, error)
+
+var lookupTXT txtLookup = func(ctx context.Context, name string) ([]string, error) {
+	return net.DefaultResolver.LookupTXT(ctx, name)
+}
+
+// txtByHost groups the TXT values of dnsx JSONL lines by the name that was
+// queried (dnsx reports it in "host", also when the answer came through a
+// CNAME). A name with no TXT answer produces no line, so it is absent here.
+func txtByHost(lines []string) map[string][]string {
+	out := map[string][]string{}
+	for _, l := range lines {
+		var rec struct {
+			Host string   `json:"host"`
+			Txt  []string `json:"txt"`
+		}
+		if json.Unmarshal([]byte(l), &rec) != nil || rec.Host == "" || len(rec.Txt) == 0 {
+			continue
+		}
+		h := strings.ToLower(strings.TrimSuffix(rec.Host, "."))
+		out[h] = append(out[h], rec.Txt...)
+	}
+	return out
+}
+
+// spfLookupCap stops the include walk once the count is far past the RFC 7208
+// limit of 10, so a pathological or looping record cannot run up DNS traffic.
+const spfLookupCap = 25
+
+// findSPF returns the first v=spf1 record in txt, or "".
+func findSPF(txt []any) string {
+	for _, v := range txt {
+		if s, ok := v.(string); ok && isSPF(s) {
+			return s
+		}
+	}
+	return ""
+}
+
+func isSPF(s string) bool {
+	f := strings.Fields(s)
+	return len(f) > 0 && strings.EqualFold(f[0], "v=spf1")
+}
+
+// countSPFLookups counts the DNS-querying terms in an SPF record and in every
+// record it includes or redirects to (RFC 7208 section 4.6.4: include, a, mx,
+// ptr, exists and redirect each count; more than 10 is a permanent error that
+// makes SPF fail for every message). complete is false when an included record
+// could not be fetched, so the count is then a lower bound.
+func countSPFLookups(ctx context.Context, record string, lookup txtLookup) (count int, complete bool) {
+	complete = true
+	seen := map[string]bool{}
+	var walk func(rec string)
+	walk = func(rec string) {
+		terms := strings.Fields(rec)
+		if len(terms) > 0 {
+			terms = terms[1:] // drop v=spf1
+		}
+		for _, term := range terms {
+			if count > spfLookupCap {
+				return
+			}
+			term = strings.TrimLeft(term, "+-~?")
+			mech, arg, _ := strings.Cut(term, ":")
+			if mech == term {
+				mech, arg, _ = strings.Cut(term, "=")
+			}
+			mech = strings.ToLower(mech)
+			if i := strings.IndexByte(mech, '/'); i >= 0 {
+				mech = mech[:i]
+			}
+			switch mech {
+			case "a", "mx", "ptr", "exists":
+				count++
+			case "include", "redirect":
+				count++
+				target := strings.ToLower(strings.TrimSuffix(arg, "."))
+				if target == "" || seen[target] {
+					continue
+				}
+				seen[target] = true
+				txts, err := lookup(ctx, target)
+				if err != nil {
+					complete = false
+					continue
+				}
+				found := false
+				for _, t := range txts {
+					if isSPF(t) {
+						found = true
+						walk(t)
+						break
+					}
+				}
+				if !found {
+					complete = false
+				}
+			}
+		}
+	}
+	walk(record)
+	return count, complete
+}
+
+// RunDnsx resolves a domain and merges email-security records into the apex
+// result so the parser sees them without knowing which selector the domain uses:
+//   - _dmarc.<domain> and common DKIM selector TXT records are merged into "txt";
+//   - "dkim_selectors" names the selectors that answered;
+//   - "mail_policy" holds the MTA-STS, TLS-RPT and BIMI TXT records;
+//   - "caa" lists the CAA issuers (empty when none);
+//   - "spf_lookups" / "spf_lookups_complete" count the SPF DNS lookups.
+//
+// A field is set only when its lookup succeeded, so a failed query is never
+// read as "no such record".
 func RunDnsx(ctx context.Context, target string) ([]string, error) {
 	results, err := execJSONL(ctx, "dnsx",
-		[]string{"-silent", "-a", "-aaaa", "-cname", "-ns", "-mx", "-txt", "-cdn", "-asn", "-json"},
+		[]string{"-silent", "-a", "-aaaa", "-cname", "-ns", "-mx", "-txt", "-caa", "-cdn", "-asn", "-json"},
 		target+"\n")
 	if err != nil {
 		return nil, err
@@ -173,15 +296,21 @@ func RunDnsx(ctx context.Context, target string) ([]string, error) {
 		return results, nil
 	}
 	existing, _ := apex["txt"].([]any)
+	if _, ok := apex["caa"]; !ok {
+		apex["caa"] = []any{}
+	}
 
-	// Run DMARC and DKIM queries concurrently — they're independent of each
-	// other and of the apex result, so no ordering constraint.
+	// The queries are independent of each other and of the apex result, so
+	// they run concurrently.
 	var (
-		dmarcLines []string
-		dkimLines  []string
-		wg         sync.WaitGroup
+		dmarcLines, dkimLines, policyLines []string
+		dkimErr, policyErr                 error
+		spfCount                           int
+		spfComplete                        bool
+		wg                                 sync.WaitGroup
 	)
-	wg.Add(2)
+	spfRecord := findSPF(existing)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		dmarcLines, _ = execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, "_dmarc."+target+"\n")
@@ -192,14 +321,58 @@ func RunDnsx(ctx context.Context, target string) ([]string, error) {
 		for _, sel := range dkimSelectors {
 			fmt.Fprintf(&sb, "%s._domainkey.%s\n", sel, target)
 		}
-		dkimLines, _ = execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, sb.String())
+		dkimLines, dkimErr = execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, sb.String())
 	}()
+	go func() {
+		defer wg.Done()
+		var sb strings.Builder
+		for _, p := range mailPolicyNames {
+			fmt.Fprintf(&sb, "%s%s\n", p.prefix, target)
+		}
+		policyLines, policyErr = execJSONL(ctx, "dnsx", []string{"-silent", "-txt", "-json"}, sb.String())
+	}()
+	if spfRecord != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			spfCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+			defer cancel()
+			spfCount, spfComplete = countSPFLookups(spfCtx, spfRecord, lookupTXT)
+		}()
+	}
 	wg.Wait()
 
 	existing = mergeTxtLines(existing, dmarcLines)
 	existing = mergeTxtLines(existing, dkimLines)
-
 	apex["txt"] = existing
+
+	if dkimErr == nil {
+		byHost := txtByHost(dkimLines)
+		selectors := []any{}
+		for _, sel := range dkimSelectors {
+			if len(byHost[strings.ToLower(sel+"._domainkey."+target)]) > 0 {
+				selectors = append(selectors, sel)
+			}
+		}
+		apex["dkim_selectors"] = selectors
+	}
+	if policyErr == nil {
+		byHost := txtByHost(policyLines)
+		policy := map[string]any{}
+		for _, p := range mailPolicyNames {
+			vals := []any{}
+			for _, v := range byHost[strings.ToLower(p.prefix+target)] {
+				vals = append(vals, v)
+			}
+			policy[p.key] = vals
+		}
+		apex["mail_policy"] = policy
+	}
+	if spfRecord != "" {
+		apex["spf_lookups"] = spfCount
+		apex["spf_lookups_complete"] = spfComplete
+	}
+
 	if merged, mergeErr := json.Marshal(apex); mergeErr == nil {
 		results[0] = string(merged)
 	}
