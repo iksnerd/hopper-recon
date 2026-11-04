@@ -40,8 +40,11 @@ import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Info } from "lucide-react"
+import { toast } from "sonner"
+import { Progress } from "@/components/ui/progress"
+import { EmptyState } from "@/components/recon/empty-state"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
-import { certDaysLabel, httpStatusBracket } from "@/lib/recon-display"
+import { certDaysLabel, httpStatusBracket, progressPercent } from "@/lib/recon-display"
 import { emailBadges, type EmailBadge } from "@/lib/email-auth"
 
 const TOOLS = [
@@ -244,6 +247,12 @@ function DashboardInner() {
           })
         })
         .catch((err: Error) => {
+          // A panel for a failed tool can sit far below the fold, so say it out loud too.
+          // Keyed by tool so a re-scan replaces the toast instead of stacking another.
+          toast.error(`${TOOLS.find((t) => t.id === tool)?.label ?? tool} failed for ${target}`, {
+            id: `scan-error-${tool}`,
+            description: err.message,
+          })
           setScan((prev) => {
             if (!prev || prev.target !== target) return prev
             const start = prev.startedAt[tool] ?? Date.now()
@@ -266,6 +275,7 @@ function DashboardInner() {
       setScan((prev) => prev ? { ...prev, resolveMutState: "done", resolvedMuts: parseMutationResolve(data) } : prev)
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
+      toast.error(`Resolving mutations failed for ${scan.target}`, { id: "scan-error-resolve_mutations", description: msg })
       setScan((prev) => prev ? { ...prev, resolveMutState: "error", resolveMutError: msg } : prev)
     }
   }
@@ -360,6 +370,13 @@ function DashboardInner() {
             </div>
           </ReconCardContent>
         </ReconCard>
+
+        {!scan && recentDomains?.length === 0 && (
+          <EmptyState
+            title="NO SCANS YET"
+            description="Enter a domain above and press EXECUTE. Scans are passive; results appear here and are saved to history."
+          />
+        )}
 
         {!scan && recentDomains && recentDomains.length > 0 && (
           <ReconCard>
@@ -529,6 +546,7 @@ function DashboardInner() {
                           <HostList
                             rows={scan.subdomains.findings.map(({ host }) => ({ key: host, text: host }))}
                             filterPlaceholder="filter subdomains…"
+                            exportName={`subdomains-${scan.target}`}
                           />
                         )}
                       </Panel>
@@ -565,6 +583,7 @@ function DashboardInner() {
                               href: `/dashboard?domain=${encodeURIComponent(e.host)}`,
                             }))}
                             filterPlaceholder="filter domains…"
+                            exportName={`domains-${scan.target}`}
                           />
                         </>
                       )}
@@ -825,6 +844,7 @@ function DashboardInner() {
                             }))}
                             maxHeight="max-h-[480px]"
                             filterPlaceholder="filter urls…"
+                            exportName={`urls-${scan.target}`}
                           />
                         )}
                       </Panel>
@@ -876,6 +896,7 @@ function DashboardInner() {
                             rows={scan.alterx.entries.map((e, i) => ({ key: `${e.word}-${i}`, text: e.word }))}
                             maxHeight="max-h-[480px]"
                             filterPlaceholder="filter candidates…"
+                            exportName={`mutation-candidates-${scan.target}`}
                           />
                         </>
                       )}
@@ -905,6 +926,7 @@ function DashboardInner() {
                         }))}
                         maxHeight="max-h-[480px]"
                         filterPlaceholder="filter live hosts…"
+                        exportName={`live-mutations-${scan.target}`}
                       />
                     )}
                   </Panel>
@@ -974,6 +996,12 @@ function ScanStatusPill({ status, done, total, errors }: {
       <span className="font-mono text-micro tracking-widest uppercase text-terminal-green border border-terminal-green/40 bg-card-inset px-2 py-1 flex items-center gap-2">
         <span className="cursor-blink">█</span>
         SCANNING {done}/{total}
+        <Progress
+          value={progressPercent(done + errors, total)}
+          aria-label="scan progress"
+          className="w-14 sm:w-20 h-1 rounded-none bg-border"
+          indicatorClassName="bg-terminal-green"
+        />
       </span>
     )
   }
