@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { Input } from "@/components/ui/input"
+import { EmptyState } from "@/components/recon/empty-state"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import {
@@ -203,13 +204,11 @@ export default function HistoryPage() {
 
         {/* Empty */}
         {domains?.length === 0 && (
-          <div className="border border-border bg-card p-8 flex flex-col items-center gap-3 text-center">
-            <div className="text-micro text-muted-foreground">{"// NO SCANS YET"}</div>
-            <p className="text-body text-muted-foreground-3">run a scan from the dashboard to populate history</p>
-            <Link href="/dashboard" className="text-body text-terminal-green hover:text-background hover:bg-terminal-green border border-terminal-green/40 bg-card-inset px-4 py-1.5 transition-colors duration-100 mt-2 tracking-widest uppercase font-bold">
+          <EmptyState title="NO SCANS YET" description="Run a scan from the dashboard; every completed scan is saved here.">
+            <Link href="/dashboard" className="text-body text-terminal-green hover:text-background hover:bg-terminal-green border border-terminal-green/40 bg-card-inset px-4 py-1.5 transition-colors duration-100 tracking-widest uppercase font-bold">
               &gt;_ GO TO DASHBOARD
             </Link>
-          </div>
+          </EmptyState>
         )}
 
         {/* Domain cards */}
