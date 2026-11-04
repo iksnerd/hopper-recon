@@ -20,6 +20,21 @@ _(none)_
 
 ---
 
+## Done — email authentication report (Unreleased)
+
+- [x] Email auth read properly: DMARC policy / pct / sp / rua, SPF qualifier, duplicate records, stable finding ids (`web/src/lib/email-auth.ts`)
+- [x] Engine `resolve_dns`: DKIM selector names, MTA-STS / TLS-RPT / BIMI, CAA, SPF lookup count
+- [x] Change tracking between scans (history page + report)
+- [x] `/report/<domain>`: print-to-PDF report, "Run full scan", sibling domains
+- [x] Mock engine: DMARC + new fields, `weak.test`
+
+### Later (decisions, not fixes)
+- [ ] Move the email assessment into the Go engine so MCP clients get the verdict (today `/mcp` returns raw TXT; the logic is web TypeScript). Conflicts with keeping the core small, so decide first.
+- [ ] Server-side PDF generation (needs a headless browser dependency); today it is the browser's print dialog.
+- [ ] Typosquat detection (permutations of the domain name, resolved); `find_domains` only covers other TLDs.
+
+---
+
 ## Done — v0.3.2 mutations UX (2026-05-24)
 
 - [x] **`resolve_mutations` tool** — engine: `RunResolveMutations` (subfinder → alterx → dnsx `-a`); REST dispatch + MCP handler. Web: `VALID_TOOLS`, `parseMutationResolve` + `ResolvedMutResult` types, dashboard "resolve →" button that fires on demand and renders `// LIVE MUTATIONS` panel, history detail `// LIVE MUTATIONS` panel. 4 new tests (2 tool, 1 server dispatch, 1 DKIM merge).

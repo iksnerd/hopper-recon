@@ -13,7 +13,7 @@ Self-hosted — `docker compose up`, SQLite for storage, no external services. A
 
 > ## Authorized use only
 >
-> Hopper Recon sends DNS, TLS handshake, and HTTP traffic to any target you give it. **Run only against assets you own or have written authorization to test.** Outbound footprint per scan against a single target is roughly **5 DNS queries + 1 TLS handshake + 1 HTTP GET** — equivalent to one browser tab. It is not a stealth tool: HTTP probes identify themselves with a `hopper-recon/<version> (+https://github.com/iksnerd/hopper-recon)` User-Agent so target operators can attribute traffic and request exclusion.
+> Hopper Recon sends DNS, TLS handshake, and HTTP traffic to any target you give it. **Run only against assets you own or have written authorization to test.** Outbound footprint per scan against a single target is roughly **25 DNS queries (through public resolvers) + 1 TLS handshake + 1 HTTP GET**, plus up to 25 TXT lookups to follow its SPF includes; see [SECURITY.md](./SECURITY.md#outbound-footprint-per-scan). It is not a stealth tool: HTTP probes identify themselves with a `hopper-recon/<version> (+https://github.com/iksnerd/hopper-recon)` User-Agent so target operators can attribute traffic and request exclusion.
 >
 > The maintainers do not consent to use of this software against unauthorized third-party infrastructure. See [SECURITY.md](./SECURITY.md) for the full posture and disclosure contact.
 
@@ -24,7 +24,9 @@ Self-hosted — `docker compose up`, SQLite for storage, no external services. A
 - **Dashboard** — runs all OSINT tools in parallel against a target, live elapsed timers, findings triage strip, tech stack detection
 - **History** — per-domain timeline with multi-scan charts, geo-globe from IP data, full-page detail view with scrollable subdomain list, cert SAN expansion, redirect chains
 - **MCP-native engine** — exposes the same tools at `/mcp` so AI agents drive recon directly; the dashboard is just one consumer
-- **Findings strip** — auto-triages expired certs, missing SPF/DMARC, HTTPS→HTTP downgrades, sensitive subdomains
+- **Findings strip** — auto-triages expired certs, HTTPS→HTTP downgrades, sensitive subdomains and email authentication. It reads what SPF, DMARC and DKIM actually say, not only that they exist: DMARC `p=none` is flagged as spoofable, SPF `~all` and an SPF record over the 10-lookup limit are called out, and MTA-STS, TLS-RPT and CAA are checked
+- **Change tracking** — the history page compares a domain's DNS and email records with the previous scan, so a record change can be checked ("DMARC `p=none` → `p=quarantine`, finding cleared")
+- **Security report** — `REPORT` on a domain's history page opens a print-ready page (verdict, findings with explanations, the record settings, a suggested DMARC record with a rollback value, what was scanned and its limits) and **Save as PDF** uses the browser's print dialog. **Run full scan** there scans the domain with the tools the report uses
 - **Geo globe** — IP → country via bundled MaxMind GeoLite2 (offline), rendered with [cobe](https://cobe.vercel.app)
 - **Self-hosted** — `docker compose up -d` pulls prebuilt multi-arch images (amd64 + arm64); no Go or Node toolchain needed. SQLite for storage, no external services required
 - **Continuous backup via Litestream** — WAL streaming to a local file volume by default; flip a config block to replicate to S3 / R2 / Azure Blob / GCS instead
@@ -77,6 +79,9 @@ curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmd
 # Pulls prebuilt multi-arch images from Docker Hub — no build toolchain needed.
 docker compose up -d
 
+# If the pull fails with "pull access denied", build from source instead:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
 # Open the dashboard
 open http://localhost:9120        # macOS
 # xdg-open http://localhost:9120  # Linux
@@ -124,7 +129,7 @@ The HTTP variant connects to your long-running engine and shares the dashboard's
 |---|---|---|
 | `passive_subdomains` | subfinder | OSINT subdomain enumeration across 40+ sources (free without keys, more with) |
 | `find_domains` | tldfinder | Sibling top-level-domain discovery — resolves the org name against ~1,450 TLDs (e.g. finds `example.io` while scanning `example.com`). Free, unconfigured DNS resolution — no API keys, no requests to the target. |
-| `resolve_dns` | dnsx | A / **AAAA** / CNAME / NS / MX / TXT records, CDN detection, DMARC merge from `_dmarc.<host>` |
+| `resolve_dns` | dnsx | A / **AAAA** / CNAME / NS / MX / TXT / CAA records, CDN detection; DMARC merged from `_dmarc.<host>`, DKIM selector names, MTA-STS / TLS-RPT / BIMI records and the SPF DNS-lookup count |
 | `fetch_tls_cert` | tlsx | TLS cert details — CN, SANs, expiry, cipher, wildcard/expired/self-signed flags |
 | `probe_http` | httpx | HTTP probe — title, tech stack, JARM, CPE, redirect chain. Custom UA, 50 rps cap |
 | `check_cdn` | cdncheck | Per-IP CDN / cloud / WAF attribution from bundled CIDR lists (Cloudflare, Akamai, Fastly, AWS, GCP, Imperva, …). Pure offline. |

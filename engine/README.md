@@ -10,7 +10,7 @@ Go server that wraps a small set of [projectdiscovery](https://github.com/projec
 | MCP name | Binary / library | Input | Output | Notes |
 |---|---|---|---|---|
 | `passive_subdomains` | subfinder | `{ domain }` | `[{ host, sources[] }]` | `-all -cs` for source attribution |
-| `resolve_dns` | dnsx | `{ target }` | parsed JSON record | A/AAAA/CNAME/NS/MX/TXT, CDN + ASN; merges `_dmarc.<host>` TXT into apex |
+| `resolve_dns` | dnsx | `{ target }` | parsed JSON record | A/AAAA/CNAME/NS/MX/TXT/CAA, CDN + ASN; merges `_dmarc.<host>` and DKIM-selector TXT into apex `txt`, and adds `dkim_selectors` (names that answered), `mail_policy` (`mta_sts` / `tls_rpt` / `bimi` TXT), `caa` and `spf_lookups` + `spf_lookups_complete` (SPF DNS-lookup count, following includes). Each is set only when its lookup succeeded, so a field's absence means "not looked up", not "no such record" |
 | `fetch_tls_cert` | tlsx | `{ target }` | parsed JSON record | SAN/CN/cipher/wildcard/expired/self-signed |
 | `probe_http` | httpx | `{ target }` | parsed JSON record | Title, tech, JARM, ASN, redirect chain, 50 rps cap, custom `hopper-recon/<version>` UA (built from `Version` in tools.go) |
 | `check_cdn` | cdncheck | `{ target }` | `[{ ip, cdn/cloud/waf, *_name }]` | Pure offline CIDR-list lookup — bundled `sources_data.json`, no network calls beyond the DNS resolution embedded in cdncheck itself |

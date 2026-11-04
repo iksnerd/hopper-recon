@@ -82,7 +82,7 @@ The engine runs inside Docker. After Go changes, rebuild the image: `docker comp
 **Test suite** (`engine/*_test.go`, all `package main`):
 - `policy_test.go` — `Policy.Check`, `inScope`, `LoadPolicy`
 - `db_test.go` — full SQL round-trips on `:memory:` SQLite; helper `newTestDB(t)` available
-- `tools_test.go` — subprocess output stubbed via `var execJSONL = runJSONL` (swap in tests via `withExecJSONL`)
+- `tools_test.go` — subprocess output stubbed via `var execJSONL = runJSONL` (swap in tests via `withExecJSONL`). `RunDnsx` runs its DMARC / DKIM / mail-policy / SPF lookups concurrently, so its tests use `withDnsStub`, which answers by what was queried (not call order) and also fakes `lookupTXT`, the resolver that follows SPF includes
 - `server_test.go` — HTTP handlers via `httptest`; tool dispatch stubbed via `var toolRunner = runTool` (swap via `withToolRunner`); policy helpers `plainPolicy()` / `scopedPolicy(domains...)` available
 - `integration_test.go` — `//go:build integration`; requires real binaries inside Docker; run with `go test -tags integration ./...`
 
@@ -98,7 +98,7 @@ File layout:
 2. Add a thin `handle<Name>` in `engine/main.go` for MCP, plus the `mcp.AddTool` call in `buildMCPServer()`.
 3. Add a `case "<name>":` in `runTool` in `engine/server.go` so REST `/scan` can dispatch it.
 4. If a binary is required, add the `RUN go install …` and `COPY --from=builder /go/bin/<bin> /usr/local/bin/<bin>` lines in `engine/Dockerfile` (and the chmod line).
-5. Add tests in `engine/tools_test.go`: use `withExecJSONL` to stub subprocess output and test JSONL parsing + any merge logic. Add handler tests in `engine/server_test.go` for the new `runTool` dispatch case. Run `go test ./...` clean before moving on.
+5. Add tests in `engine/tools_test.go`: use `withExecJSONL` to stub subprocess output (for `RunDnsx`, `withDnsStub`) and test JSONL parsing + any merge logic. Add handler tests in `engine/server_test.go` for the new `runTool` dispatch case. Run `go test ./...` clean before moving on.
 6. On the web side, add the tool name to `VALID_TOOLS` in `web/src/app/api/scan/route.ts`, write a parser in `web/src/lib/scan-parser.ts` (consume the flat parsed-object array — no JSONL re-parsing), and surface a tab/panel on dashboard + history pages.
 7. Surface attribution: attach a `ToolSourceLink` to the tool's main result Panel on the dashboard (passes the link into the Panel's `action` slot), and add an entry to `RECON_TOOLS` in `web/src/app/(app)/about/page.tsx` so the `/about` credits page lists it.
 8. Add the tool to the dev mock: a `case "<name>":` in `synthesise()` and an entry in the `TOOLS` array in `web/mocks/engine.mjs`. `web/src/lib/__tests__/mock-engine.test.ts` fails if you skip this. Match the **engine's** output shape, not the upstream binary's — the engine normalises some fields (subfinder's `source` string becomes a `sources` array, httpx `cpe` entries are objects). Capture a real row from a live scan and copy its shape rather than guessing.
