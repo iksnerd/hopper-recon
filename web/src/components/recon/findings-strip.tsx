@@ -1,4 +1,5 @@
 import * as React from "react"
+import { assessCaa, assessEmailAuth } from "@/lib/email-auth"
 import type { SubdomainResult, DnsResult, TlsResult, HttpResult } from "@/lib/scan-parser"
 import {
   ReconCard,
@@ -10,15 +11,17 @@ import {
 
 type Severity = "issue" | "ok" | "info"
 
-interface Finding {
+export interface Finding {
   severity: Severity
   source: "TLS" | "DNS" | "HTTP" | "SUBS"
   message: string
+  /** Longer explanation; the report shows it, the strip does not. */
+  detail?: string
 }
 
 const SENSITIVE_SUB = /^(dev|staging|test|sandbox|beta|admin|internal|jenkins|ci|stg|qa|preview)\./i
 
-function deriveFindings({ subs, dns, tls, http }: {
+export function deriveFindings({ subs, dns, tls, http }: {
   subs: SubdomainResult | null
   dns: DnsResult | null
   tls: TlsResult | null
@@ -42,11 +45,9 @@ function deriveFindings({ subs, dns, tls, http }: {
   }
 
   if (dns) {
-    const sec = dns.securityTxt
-    if (!sec.spf)   out.push({ severity: "issue", source: "DNS", message: "No SPF record — anyone can send email pretending to be this domain" })
-    else            out.push({ severity: "ok",    source: "DNS", message: "SPF present — unauthorised senders are flagged" })
-    if (!sec.dmarc) out.push({ severity: "issue", source: "DNS", message: "No DMARC — spoofed emails reach inboxes even with SPF configured" })
-    if (!sec.dkim)  out.push({ severity: "info",  source: "DNS", message: "No DKIM — recipients can't verify emails were sent unmodified" })
+    for (const f of [...assessEmailAuth(dns.email), ...assessCaa(dns.caa)]) {
+      out.push({ severity: f.severity, source: "DNS", message: f.message, detail: f.detail })
+    }
   }
 
   if (http) {

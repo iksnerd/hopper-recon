@@ -1,3 +1,5 @@
+import { parseEmailAuth, type EmailAuth } from "@/lib/email-auth"
+
 export interface SubdomainEntry {
   host: string
   sources: string[]
@@ -23,6 +25,10 @@ export interface DnsResult {
   resolver: string[]
   ipDistribution: { prefix: string; count: number }[]
   securityTxt: { spf: boolean; dmarc: boolean; dkim: boolean }
+  /** What the SPF / DMARC / DKIM records actually say (policy, qualifier, reporting), not just whether they exist. */
+  email: EmailAuth
+  /** CAA issuers; null when the scan predates CAA reporting. */
+  caa: string[] | null
 }
 
 export interface DomainEntry {
@@ -207,6 +213,9 @@ export function parseDns(apiResult: unknown): DnsResult | null {
     results: Array<{
       host: string; a?: string[]; aaaa?: string[]; ns?: string[]; mx?: string[]; txt?: string[]
       cdn?: boolean; "cdn-name"?: string; asn?: string; status_code: string; ttl: number; resolver: string[]
+      // Added by the engine's email-security lookups; absent on older scans.
+      caa?: string[]; dkim_selectors?: string[]; spf_lookups?: number; spf_lookups_complete?: boolean
+      mail_policy?: { mta_sts?: string[]; tls_rpt?: string[]; bimi?: string[] }
     }>
   }
   const first = raw?.results?.[0]
@@ -227,6 +236,15 @@ export function parseDns(apiResult: unknown): DnsResult | null {
     dmarc: /v=dmarc1/.test(txtJoined),
     dkim:  /v=dkim1/i.test(txtJoined),
   }
+  const mp = first.mail_policy
+  const email = parseEmailAuth(txt, {
+    dkimSelectors: first.dkim_selectors,
+    spfLookups: typeof first.spf_lookups === "number"
+      ? { count: first.spf_lookups, complete: first.spf_lookups_complete !== false }
+      : undefined,
+    mailPolicy: mp ? { mtaSts: mp.mta_sts ?? [], tlsRpt: mp.tls_rpt ?? [], bimi: mp.bimi ?? [] } : undefined,
+    hasMx: (first.mx ?? []).length > 0,
+  })
 
   return {
     host: first.host,
@@ -248,6 +266,8 @@ export function parseDns(apiResult: unknown): DnsResult | null {
       .map(([prefix, count]) => ({ prefix, count }))
       .sort((a, b) => b.count - a.count),
     securityTxt,
+    email,
+    caa: first.caa ?? null,
   }
 }
 

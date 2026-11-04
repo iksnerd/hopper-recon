@@ -18,6 +18,7 @@
 // the dashboard and get a plausible result. `huge.test` (or any target with
 // HUGE_HOSTS set) generates 25,000 subdomains, which is what the unvirtualised
 // list bug needed to reproduce — keep it working when touching HostList.
+// `weak.test` gets a badly configured mail setup (see resolve_dns below).
 
 import { createServer } from "node:http"
 import { readFileSync } from "node:fs"
@@ -103,12 +104,28 @@ function synthesise(tool, target) {
         .map((tld) => ({ host: `${target.split(".")[0]}.${tld}`, sources: ["dnsx"] }))
     case "resolve_dns": {
       const a = [synthIP(rng), synthIP(rng)]
+      // "weak.test" is the badly configured mail domain: monitor-only DMARC,
+      // softfail SPF over the lookup limit, no MTA-STS or CAA. Every other
+      // target gets a well-configured one. Both carry the fields the real
+      // engine adds (dkim_selectors, mail_policy, caa, spf_lookups).
+      const weak = target === "weak.test"
+      const key = "A".repeat(216)
       return [{
         host: target, ttl: 60 + Math.floor(rng() * 300), a,
         aaaa: ["2606:4700::6810:85e5"],
         ns: [`ns1.${target}`, `ns2.${target}`],
         mx: [`10 mail.${target}`],
-        txt: ["v=spf1 include:_spf.google.com -all"],
+        txt: [
+          weak ? "v=spf1 include:_spf.google.com ~all" : "v=spf1 include:_spf.google.com -all",
+          weak ? `v=DMARC1; p=none; rua=mailto:dmarc@${target};` : `v=DMARC1; p=reject; rua=mailto:dmarc@${target};`,
+          `v=DKIM1; k=rsa; p=${key}`,
+        ],
+        dkim_selectors: ["google"],
+        mail_policy: weak
+          ? { mta_sts: [], tls_rpt: [], bimi: [] }
+          : { mta_sts: ["v=STSv1; id=20260101T000000;"], tls_rpt: [`v=TLSRPTv1; rua=mailto:tls@${target}`], bimi: [] },
+        caa: weak ? [] : ["letsencrypt.org"],
+        spf_lookups: weak ? 12 : 4, spf_lookups_complete: true,
         all: [`${target}.\t300\tIN\tA\t${a[0]}`],
         status_code: "NOERROR", resolver: ["1.1.1.1:53"],
         timestamp: new Date().toISOString(),
