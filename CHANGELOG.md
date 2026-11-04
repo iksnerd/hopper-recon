@@ -6,7 +6,23 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Email authentication is read, not just detected** — the dashboard marked DMARC and SPF green whenever a record existed, so a domain with DMARC `p=none` (monitor only: spoofed mail is still delivered) and SPF `~all` showed ✓ ✓ with no finding. `web/src/lib/email-auth.ts` now parses the policy (`p`, `sp`, `pct`, `rua`, alignment), the SPF terminating qualifier, duplicate records (both are permanent errors) and the DKIM keys, and assesses them: `p=none`, `sp=none` on an enforcing domain, partial `pct`, no `rua`, `+all` / `?all`, and softfail all get their own finding with an explanation. The badges are green only when the record does its job and show the setting (`DMARC p=none`). The old findings also said "SPF present — unauthorised senders are flagged" for any SPF.
+- **More email and DNS checks** — the engine's `resolve_dns` now also returns `dkim_selectors` (which selectors answered), `mail_policy` (MTA-STS, TLS-RPT and BIMI TXT records), `caa`, and `spf_lookups` / `spf_lookups_complete`, the SPF DNS-lookup count following `include:` and `redirect=` (more than 10 makes SPF fail for every message, RFC 7208 §4.6.4). New findings: SPF over or at the lookup limit, no MTA-STS (and MTA-STS without TLS-RPT) on a domain that receives mail, and no CAA. Each field is set only when its lookup succeeded, and the web treats a scan from before these fields as "unknown", never as "missing".
+- **Change tracking** — the history page compares the latest DNS scan with the one before and lists record changes and findings that appeared or cleared, so a DMARC change can be checked by rescanning. Findings carry a stable `id`, so a message that includes a count does not read as a change.
+- **Security report** (`/report/<domain>`, `REPORT` on the history page) — a print-ready page: verdict, findings with explanations, record settings, a suggested DMARC record with the value to roll back to, DNS facts, sibling domains from `find_domains`, and what was scanned and its limits. **Save as PDF** uses the browser's print dialog; the page is light, A4, and omits the dev tools. **Run full scan** runs `resolve_dns`, `fetch_tls_cert`, `probe_http`, `passive_subdomains` and `find_domains` through `/api/scan` (so the policy gate and cooldown still apply) and records which tools failed.
+- The mock engine's `resolve_dns` now has DMARC and the new engine fields, and `weak.test` is a badly configured mail domain for exercising the findings and the report.
+
+### Changed
+
+- **Outbound footprint is documented as it is** — a scan sends about 25 DNS queries about the target's own names (12 DKIM selectors, `_dmarc`, the mail-policy names and the apex records) plus up to 25 TXT lookups to follow its SPF includes; SECURITY.md and the README said "~5". The SPF walk asks about the *included* domains, not the target.
+- `RunDnsx`'s tests answer by what was queried instead of by call order. The lookups run concurrently, so the old order-based stub raced.
+
 ### Fixed
+
+- `next dev` opened on `http://127.0.0.1:…` loaded the HTML and never hydrated (a 403 on dev assets); `allowedDevOrigins` now includes `127.0.0.1`.
+- README and DEPLOY say what to do when `docker compose up -d` fails with `pull access denied`: build from source with `docker-compose.build.yml`.
 
 - **`.gitleaks.toml` disabled every gitleaks rule** — the file defined only an `[allowlist]`, and without `[extend] useDefault = true` gitleaks swaps its built-in rules for an empty set, so any scan run from the repo root reported "no leaks found" no matter what. The config now extends the defaults. A full scan of all 83 commits and of the tracked tree with real rules is clean, and the existing Shodan/Censys/FOFA allowlist entry is still needed (it's the one finding without it).
 - **`docker compose up -d` pinned an image that was never published** — v0.4.2 bumped the compose pin to `v0.4.2`, but the web image failed to build for `linux/amd64` and was never pushed, so a fresh install could not pull `iksnerd/hopper-recon-web:v0.4.2`. The pin is back on `v0.4.1`, whose engine and web images are both published for amd64 and arm64. **Skip v0.4.2**: the git tag is fine, but there is no complete image set for it. The compose pin will move forward again once the web image builds and is verified on the registry — publishing first, pinning second.

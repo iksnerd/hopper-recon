@@ -20,6 +20,11 @@ curl -L https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmd
 # Pulls prebuilt multi-arch images (linux/amd64 + linux/arm64) from Docker Hub.
 docker compose up -d
 
+# "pull access denied" means the images are not reachable from this machine
+# (not published, or the repository is private and you are not logged in).
+# Build from source instead:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
 # Dashboard → http://localhost:9120
 # Engine REST + MCP → http://127.0.0.1:9119  (loopback only)
 ```

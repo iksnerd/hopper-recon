@@ -48,6 +48,7 @@ so it cannot reach a deployed image.
 | 8 fixture domains | `cloudflare.com`, `example.com`, `github.com`, `iana.org`, `linear.app`, `vercel.com`, … |
 | any other target | synthesised deterministically from the name |
 | `huge.test` | ~23.5k subdomains, for testing `HostList` and list perf |
+| `weak.test` | a badly configured mail domain (DMARC `p=none`, SPF `~all` over the lookup limit, no MTA-STS or CAA), for the email findings, the report and badges |
 | `MOCK_FAIL=probe_http,find_urls` | force per-tool failures to exercise error states |
 | `MOCK_LATENCY_MS=0` | remove the fake latency (default 400ms, so loading states are visible) |
 
