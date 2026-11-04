@@ -49,6 +49,16 @@ func runTool(ctx context.Context, tool, target string) ([]any, error) {
 			out[i] = f
 		}
 		return out, nil
+	case "find_lookalikes":
+		findings, ferr := RunLookalikes(ctx, target)
+		if ferr != nil {
+			return nil, ferr
+		}
+		out := make([]any, len(findings))
+		for i, f := range findings {
+			out[i] = f
+		}
+		return out, nil
 	case "resolve_dns":
 		raw, err = RunDnsx(ctx, target)
 	case "fetch_tls_cert":

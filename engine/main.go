@@ -24,6 +24,11 @@ type subfinderOutput struct {
 	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
 }
 
+type lookalikesOutput struct {
+	Findings []LookalikeEntry `json:"findings" jsonschema:"Registered domains that look like the scanned one (typos, look-alike characters, phishing words under the same suffix), with how each differs and its A/MX records"`
+	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
+}
+
 type tldfinderOutput struct {
 	Findings []TldfinderEntry `json:"findings" jsonschema:"Sibling top-level-domain variants found for the same organisation name (e.g. example.io alongside example.com)"`
 	Error    string           `json:"error,omitempty" jsonschema:"Any error message encountered during the scan"`
@@ -186,6 +191,17 @@ func buildMCPServer(ctx MCPCtx) *mcp.Server {
 		},
 		func(r []TldfinderEntry) tldfinderOutput { return tldfinderOutput{Findings: r} },
 		func(e string) tldfinderOutput { return tldfinderOutput{Error: e} }))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "find_lookalikes",
+		Description: "Find registered lookalikes of a domain (typos, look-alike characters, phishing words such as example-login.com) by resolving candidate names under the same suffix for A and MX records. DNS-based through public resolvers: no requests to the target or to the lookalikes. Lookalikes with MX records can send mail and are listed first (dnsx).",
+	}, gated(ctx, "find_lookalikes",
+		func(in subfinderInput) string { return in.Domain },
+		func(c context.Context, in subfinderInput) ([]LookalikeEntry, error) {
+			return RunLookalikes(c, in.Domain)
+		},
+		func(r []LookalikeEntry) lookalikesOutput { return lookalikesOutput{Findings: r} },
+		func(e string) lookalikesOutput { return lookalikesOutput{Error: e} }))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "resolve_dns",
