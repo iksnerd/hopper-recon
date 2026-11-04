@@ -17,7 +17,6 @@ import {
   parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
   type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
-import type { DomainSummary } from "@/app/api/scans/domains/route"
 import type { ScanRow } from "@/lib/db"
 import { formatDistanceToNow } from "date-fns"
 import { CHART_FILLS, chartFill, CHART_CURSOR, CHART_TICK_SM } from "@/lib/chart-style"
@@ -32,18 +31,10 @@ import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { GeoGlobe } from "@/components/recon/geo-globe"
 import { certDaysCls, certDaysLabel, certValidityLabel, httpStatusCls } from "@/lib/recon-display"
-
-// Build a DomainSummary from raw rows (DESC order — first seen per tool = most recent)
-function buildSummary(rows: ScanRow[], domain: string): DomainSummary {
-  const scans: Record<string, ScanRow> = {}
-  let lastScanned = ""
-  for (const row of rows) {
-    if (row.status !== "completed") continue
-    if (!scans[row.tool]) scans[row.tool] = row
-    if (!lastScanned || row.started_at > lastScanned) lastScanned = row.started_at
-  }
-  return { domain, lastScanned, scans }
-}
+import { emailBadges } from "@/lib/email-auth"
+import { buildSummary, previousCompleted, rowResults } from "@/lib/domain-summary"
+import { diffDns } from "@/lib/scan-diff"
+import { ScanChanges } from "@/components/recon/scan-changes"
 
 function buildTimeline(rows: ScanRow[]) {
   const buckets = new Map<number, { certDays: number | null; httpStatus: number | null; ts: number }>()
@@ -127,6 +118,12 @@ export default function DomainDetailPage() {
   const alterx:        AlterxResult | null       = alterxRaw      ? parseAlterx({ results: alterxRaw })             : null
   const resolvedMuts:  ResolvedMutResult | null  = resolvedMutRaw ? parseMutationResolve({ results: resolvedMutRaw }) : null
 
+  // Compare against the scan before this one, so a record change can be checked.
+  const prevDnsRow = rows ? previousCompleted(rows, "resolve_dns") : null
+  const prevDnsRaw = rowResults(prevDnsRow)
+  const prevDns: DnsResult | null = prevDnsRaw ? parseDns({ results: prevDnsRaw }) : null
+  const dnsDiff = dns && prevDns ? diffDns(prevDns, dns) : null
+
   const [geoCountries, setGeoCountries] = React.useState<{ code: string; count: number }[]>([])
 
   // Include both A (IPv4) and AAAA (IPv6) records — IPv6-prominent hosts
@@ -165,6 +162,15 @@ export default function DomainDetailPage() {
               <span className="text-micro tracking-widest uppercase text-muted-foreground-3 hidden sm:inline">
                 {formatDistanceToNow(new Date(summary.lastScanned), { addSuffix: true })}
               </span>
+            )}
+            {summary && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/report/${encodeURIComponent(domain)}`)}
+                className="rounded-none border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-card-inset shadow-none ring-0 focus-visible:ring-0 h-7 py-0 px-2.5 text-micro tracking-widest uppercase font-mono"
+              >
+                REPORT
+              </Button>
             )}
             <Button
               variant="outline"
@@ -224,6 +230,10 @@ export default function DomainDetailPage() {
 
             {/* Findings strip */}
             <FindingsStrip subs={subdomains} dns={dns} tls={tls} http={http} />
+
+            {dnsDiff && prevDnsRow && (
+              <ScanChanges diff={dnsDiff} since={formatDistanceToNow(new Date(prevDnsRow.started_at), { addSuffix: true })} />
+            )}
 
             {/* Geo globe — only renders when at least one IP attributes to a
                 country. Anycast IPs (Cloudflare / AWS / Google) have no country
@@ -411,9 +421,7 @@ export default function DomainDetailPage() {
                   <div className="mt-3 pt-3 border-t border-border">
                     <div className="text-micro text-muted-foreground mb-2">EMAIL SECURITY</div>
                     <div className="flex flex-wrap gap-1">
-                      <SecPill label="SPF"   on={dns.securityTxt.spf} />
-                      <SecPill label="DMARC" on={dns.securityTxt.dmarc} />
-                      <SecPill label="DKIM"  on={dns.securityTxt.dkim} />
+                      {emailBadges(dns.email).map((b) => <SecPill key={b.key} label={b.label} on={b.ok} />)}
                     </div>
                   </div>
                 </Panel>

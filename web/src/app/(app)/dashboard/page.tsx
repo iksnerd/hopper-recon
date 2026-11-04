@@ -42,6 +42,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Info } from "lucide-react"
 import type { DomainSummary } from "@/app/api/scans/domains/route"
 import { certDaysLabel, httpStatusBracket } from "@/lib/recon-display"
+import { emailBadges, type EmailBadge } from "@/lib/email-auth"
 
 const TOOLS = [
   { id: "passive_subdomains", label: "SUBDOMAINS" },
@@ -618,9 +619,9 @@ function DashboardInner() {
 
                     <Panel label={"// EMAIL SECURITY (TXT)"} className="mt-4">
                       <div className="flex flex-wrap gap-2">
-                        <SecurityTxtBadge label="SPF"   present={scan.dns.securityTxt.spf}   info="Sender Policy Framework — lists which mail servers are allowed to send email for this domain. Without it, anyone can spoof your address." />
-                        <SecurityTxtBadge label="DMARC" present={scan.dns.securityTxt.dmarc} info="Domain-based Message Authentication — tells receiving mail servers what to do with emails that fail SPF/DKIM (quarantine or reject). Required for enforcement." />
-                        <SecurityTxtBadge label="DKIM"  present={scan.dns.securityTxt.dkim}  info="DomainKeys Identified Mail — cryptographically signs outgoing emails so recipients can verify the message hasn't been tampered with in transit." />
+                        {emailBadges(scan.dns.email).map((b) => (
+                          <SecurityTxtBadge key={b.key} label={b.label} present={b.ok} info={EMAIL_BADGE_INFO[b.key]} />
+                        ))}
                       </div>
                       {scan.dns.txt.length > 0 ? (
                         <div className="mt-3 space-y-1 max-h-[140px] overflow-y-auto">
@@ -1033,6 +1034,12 @@ function ChipsRow({ label, items }: { label: string; items: string[] }) {
       </TableCell>
     </TableRow>
   )
+}
+
+const EMAIL_BADGE_INFO: Record<EmailBadge["key"], string> = {
+  SPF: "Sender Policy Framework — lists which mail servers are allowed to send email for this domain. Green for -all, or ~all when DMARC enforces. ~all alone only marks unlisted senders as suspicious.",
+  DMARC: "Domain-based Message Authentication — tells receiving mail servers what to do with mail that fails SPF/DKIM. Green only for p=quarantine or p=reject at 100%. p=none is monitor-only: spoofed mail is still delivered.",
+  DKIM: "DomainKeys Identified Mail — cryptographically signs outgoing mail so recipients can verify it was not altered. Counts public keys found at a short list of common selectors, so a miss is not proof of absence.",
 }
 
 function SecurityTxtBadge({ label, present, info }: { label: string; present: boolean; info?: string }) {
