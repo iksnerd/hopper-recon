@@ -93,6 +93,12 @@ function synthIP(rng) {
   return `${1 + Math.floor(rng() * 223)}.${Math.floor(rng() * 256)}.${Math.floor(rng() * 256)}.${1 + Math.floor(rng() * 254)}`
 }
 
+// A look-alike spelling of a label that is never the label itself.
+function homoglyph(label) {
+  const swapped = label.replace(/[ol]/, (c) => (c === "o" ? "0" : "1"))
+  return swapped === label ? label.replace(/.$/, "1") : swapped
+}
+
 function synthesise(tool, target) {
   const rng = seeded(`${tool}:${target}`)
   const isHuge = target === "huge.test"
@@ -112,7 +118,7 @@ function synthesise(tool, target) {
       return [
         { host: `${label.slice(0, -1)}.${suffix}`, kind: "omission", a: [synthIP(rng)], mx: [`10 mail.${label.slice(0, -1)}.${suffix}`] },
         { host: `${label}-login.${suffix}`, kind: "keyword", a: [synthIP(rng)] },
-        { host: `${label.replace("o", "0")}.${suffix}`, kind: "homoglyph", a: [synthIP(rng)] },
+        { host: `${homoglyph(label)}.${suffix}`, kind: "homoglyph", a: [synthIP(rng)] },
       ]
     }
     case "resolve_dns": {

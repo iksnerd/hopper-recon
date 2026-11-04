@@ -35,6 +35,7 @@ import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { CopyableText } from "@/components/ui/copyable-text"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
+import { LookalikeList } from "@/components/recon/lookalike-list"
 import { HostList } from "@/components/recon/host-list"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { Badge } from "@/components/ui/badge"
@@ -623,15 +624,7 @@ function DashboardInner() {
                         no registered lookalikes found under the same suffix
                       </p>
                     ) : (
-                      <HostList
-                        rows={scan.lookalikes.entries.map((e) => ({
-                          key: e.host,
-                          text: e.host,
-                          meta: `${e.kind}${e.mx.length > 0 ? " · mail" : ""}`,
-                          href: `/dashboard?domain=${encodeURIComponent(e.host)}`,
-                        }))}
-                        filterPlaceholder="filter lookalikes…"
-                      />
+                      <LookalikeList entries={scan.lookalikes.entries} />
                     )}
                   </Panel>
                 )}

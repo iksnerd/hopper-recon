@@ -27,6 +27,7 @@ import { HostList } from "@/components/recon/host-list"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
+import { LookalikeList } from "@/components/recon/lookalike-list"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { GeoGlobe } from "@/components/recon/geo-globe"
@@ -333,16 +334,7 @@ export default function DomainDetailPage() {
                   variant="inset"
                   action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
                 >
-                  <HostList
-                    rows={lookalikes.entries.map(({ host, kind, mx }) => ({
-                      key: host,
-                      text: host,
-                      meta: `${kind}${mx.length > 0 ? " · mail" : ""}`,
-                      href: `/dashboard?domain=${encodeURIComponent(host)}`,
-                    }))}
-                    maxHeight="max-h-[600px]"
-                    filterPlaceholder="filter lookalikes…"
-                  />
+                  <LookalikeList entries={lookalikes.entries} />
                 </Panel>
               )}
 
