@@ -206,6 +206,12 @@ subfinder, dnsx, httpx, tlsx, cdncheck, urlfinder, alterx.
       rebuilt and all seven smoke-tested against `example.com` with the exact flag sets
       `tools.go` passes — no flag drift across the tlsx and cdncheck minor bumps.
 
+- [x] **subfinder bumped v2.16.0 → v2.17.0** (2026-11-04) — only subfinder; the other PD tools
+      stay put. Image rebuilt; `-d <domain> -silent -all -oJ -cs` still valid, JSONL shape
+      unchanged, `go version -m` on the builder-stage binary reports `v2.17.0`. v2.17.0 lists 54
+      sources (12 keyless, 37 key-required, 5 optional-key); `subfinder -ls` prints the names on
+      stdout and the banner with ANSI colours on stderr.
+
   > **Don't trust `<tool> -version` to check a pin.** Several PD tools hardcode a banner
   > constant that lags their own git tag — tlsx v1.3.0 self-reports `v1.2.2`, cdncheck v1.3.0
   > reports `v1.2.52`, and dnsx prints nothing parseable. The authoritative check is the module
@@ -367,11 +373,11 @@ before editing rather than trusting them exactly.
 19 of 57 vendored `components/ui` primitives are imported anywhere. That's fine on its own,
 but several unused ones map directly onto gaps above and elsewhere in this file:
 
-- [ ] `empty` — vendored, unused, and "empty state illustrations" is already an open
+- [x] `empty` — (done 2026-11-04: history list, dashboard before any scan, history not-found) vendored, unused, and "empty state illustrations" is already an open
       follow-up below. Use the primitive rather than hand-rolling.
-- [ ] `sonner` — no toast anywhere in the app; scan errors surface only inline in their panel,
+- [x] `sonner` — (done 2026-11-04: root Toaster, hidden in print; copy/download and dashboard scan errors toast) no toast anywhere in the app; scan errors surface only inline in their panel,
       so an error on a panel scrolled off-screen is silent.
-- [ ] `progress` — scan progress is text-only (`SCANNING 4/7`).
+- [x] `progress` — (done 2026-11-04: bar in the scan pill) scan progress is text-only (`SCANNING 4/7`).
 - [ ] `pagination` / `command` / `scroll-area` — still unused. The blocker above got fixed
       with a custom filter + render cap in `HostList` instead of adopting these; a future win
       would be swapping `HostList`'s hand-rolled filter input for `command`'s combobox, but

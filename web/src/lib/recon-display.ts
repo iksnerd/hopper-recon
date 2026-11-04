@@ -25,6 +25,12 @@ export function httpStatusCls(code: number): string {
   return "text-destructive"
 }
 
+/** Whole-number scan progress, 0-100. `settled` counts tools that finished either way (done or errored); out-of-range input is clamped. */
+export function progressPercent(settled: number, total: number): number {
+  if (!(total > 0) || !(settled > 0)) return 0
+  return Math.min(100, Math.round((settled / total) * 100))
+}
+
 export function httpStatusBracket(code: number): { label: string; cls: string } {
   return { label: `[${code}]`, cls: httpStatusCls(code) }
 }

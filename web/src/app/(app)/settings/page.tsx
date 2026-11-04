@@ -62,6 +62,73 @@ function EnvSetting({
   )
 }
 
+/**
+ * How much of subfinder's source list is working. Most sources need an API key,
+ * so an unconfigured install runs at a fraction of subfinder's coverage — this
+ * says so. Read-only by design: the engine reports provider NAMES only, and
+ * keys are added by editing the host file, never through this UI.
+ */
+function SubfinderSources({ config, err }: { config: EngineConfig | null; err: boolean }) {
+  if (err) return <p className="text-body text-destructive">engine unreachable — is the container running?</p>
+  if (!config) return <p className="text-body text-muted-foreground-3">loading…</p>
+
+  const {
+    subfinder_sources_total: total,
+    subfinder_sources_keyless: keyless,
+    subfinder_sources_key_required: required,
+    subfinder_sources_optional_key: optional,
+    subfinder_sources_active: active,
+    subfinder_providers_configured: providers,
+  } = config
+
+  return (
+    <>
+      <Table className="text-body">
+        <TableBody>
+          <Row label="ACTIVE">
+            {active !== undefined && total !== undefined ? (
+              <>
+                <span className={active / total >= 0.5 ? "text-terminal-green" : "text-foreground"}>
+                  {active} of {total} sources active
+                </span>
+                {keyless !== undefined && required !== undefined && optional !== undefined && (
+                  <span className="block text-muted-foreground-3 mt-0.5">
+                    {keyless} need no key · {optional} work without a key but return more with one ·{" "}
+                    {required} do nothing until a key is added
+                  </span>
+                )}
+              </>
+            ) : total !== undefined ? (
+              <span className="text-muted-foreground-3">
+                {total} sources; which keys are set could not be read from the engine
+              </span>
+            ) : (
+              <span className="text-muted-foreground-3">source list unavailable from the engine</span>
+            )}
+          </Row>
+          <Row label="KEYS SET">
+            {providers === undefined ? (
+              <span className="text-muted-foreground-3">provider config could not be read from the engine</span>
+            ) : providers.length === 0 ? (
+              <span className="text-muted-foreground-3">none — only keyless sources run</span>
+            ) : (
+              <span className="text-terminal-green break-words">{providers.join(", ")}</span>
+            )}
+          </Row>
+        </TableBody>
+      </Table>
+      <p className="mt-3 pt-2 border-t border-border text-micro text-muted-foreground-3">
+        To add keys, edit{" "}
+        <span className="text-muted-foreground">~/.config/subfinder/provider-config.yaml</span> on the
+        host (docker compose bind-mounts that folder into the engine). subfinder re-reads it on
+        every scan, so a new key applies to the next one. The engine reads the file only to see
+        which providers have a key; this page receives provider names, never the keys, and cannot
+        store them.
+      </p>
+    </>
+  )
+}
+
 export default function SettingsPage() {
   const [config, setConfig] = React.useState<EngineConfig | null>(null)
   const [err, setErr] = React.useState(false)
@@ -171,14 +238,9 @@ export default function SettingsPage() {
           </Table>
         </Panel>
 
-        {/* API keys */}
-        <Panel label="// API KEYS" variant="inset">
-          <p className="text-body text-muted-foreground-2">
-            subfinder reads keys from{" "}
-            <span className="text-terminal-green">~/.config/subfinder/provider-config.yaml</span>{" "}
-            inside the engine container. Mount a host config volume to persist keys across restarts.
-            Keys are optional — subfinder runs with degraded source coverage without them.
-          </p>
+        {/* subfinder coverage — read-only: shows what is set, never stores keys */}
+        <Panel label="// SUBFINDER SOURCES">
+          <SubfinderSources config={config} err={err} />
         </Panel>
 
         {/* MCP / HTTP */}

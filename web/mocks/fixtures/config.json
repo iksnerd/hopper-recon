@@ -1,1 +1,1 @@
-{"cooldown_s":60,"has_auth":false,"has_geo_db":true,"has_scope":false,"version":"v0.3.4"}
+{"cooldown_s":60,"has_auth":false,"has_geo_db":true,"has_scope":false,"version":"v0.3.4","subfinder_sources_total":54,"subfinder_sources_keyless":12,"subfinder_sources_key_required":37,"subfinder_sources_optional_key":5,"subfinder_sources_active":19,"subfinder_providers_configured":["github","shodan"]}

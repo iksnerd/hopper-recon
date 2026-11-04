@@ -404,15 +404,20 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 // first-boot warning banner to decide whether to nag operators about running
 // without scope or auth.
 func handleConfig(policy *Policy) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		_, geoErr := loadGeoipReader()
-		writeJSON(w, http.StatusOK, map[string]any{
+		cfg := map[string]any{
 			"version":    Version,
 			"has_scope":  policy.HasScope(),
 			"has_auth":   false, // wired in v0.3 with Auth.js
 			"cooldown_s": cooldownSeconds,
 			"has_geo_db": geoErr == nil,
-		})
+		}
+		// subfinder source coverage: counts and provider NAMES only, never keys.
+		for k, v := range subfinderCoverageFields(r.Context()) {
+			cfg[k] = v
+		}
+		writeJSON(w, http.StatusOK, cfg)
 	}
 }
 

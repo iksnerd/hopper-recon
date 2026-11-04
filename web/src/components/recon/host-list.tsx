@@ -3,8 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { Check } from "lucide-react"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { downloadText, exportFileName, filterRows, rowsToText } from "@/lib/list-export"
 
 export interface HostRow {
   /** Stable React key. */
@@ -35,6 +37,7 @@ export function HostList({
   maxHeight = "max-h-[280px]",
   filterPlaceholder = "filter…",
   filterThreshold = 25,
+  exportName = "hosts",
   className,
 }: {
   rows: HostRow[]
@@ -43,6 +46,8 @@ export function HostList({
   filterPlaceholder?: string
   /** Below this many rows the filter is hidden as clutter. */
   filterThreshold?: number
+  /** Base of the downloaded file name (sanitised), e.g. "subdomains-example.com". */
+  exportName?: string
   className?: string
 }) {
   const [query, setQuery] = React.useState("")
@@ -50,11 +55,7 @@ export function HostList({
   const [copiedKey, setCopiedKey] = React.useState<string | null>(null)
   const deferredQuery = React.useDeferredValue(query)
 
-  const filtered = React.useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((r) => r.text.toLowerCase().includes(q))
-  }, [rows, deferredQuery])
+  const filtered = React.useMemo(() => filterRows(rows, deferredQuery), [rows, deferredQuery])
 
   // A new query should start from the top of the result set rather than carry
   // over a "show more" depth from the previous one. Adjusted during render
@@ -76,7 +77,35 @@ export function HostList({
       setTimeout(() => setCopiedKey((k) => (k === row.key ? null : k)), 1200)
     } catch {
       // Clipboard is unavailable over plain HTTP on a non-localhost origin.
-      // Nothing useful to do; the text is selectable either way.
+      toast.error("Copy failed", { description: "Clipboard unavailable here; select the text instead." })
+    }
+  }
+
+  // Exports every match of the current filter, not just the rendered page.
+  // Uses the live query (not the deferred one) so what the user typed is what
+  // they get; filtering 25k rows is cheap.
+  function exportSet() {
+    return filterRows(rows, query)
+  }
+
+  async function copyAll() {
+    const set = exportSet()
+    try {
+      await navigator.clipboard.writeText(rowsToText(set))
+      toast.success(`Copied ${set.length.toLocaleString()} ${set.length === 1 ? "entry" : "entries"}`)
+    } catch {
+      toast.error("Copy failed", { description: "Clipboard unavailable here; use download instead." })
+    }
+  }
+
+  function download() {
+    const set = exportSet()
+    const name = exportFileName(exportName)
+    try {
+      downloadText(name, rowsToText(set))
+      toast.success(`Downloaded ${set.length.toLocaleString()} ${set.length === 1 ? "entry" : "entries"}`, { description: name })
+    } catch {
+      toast.error("Download failed")
     }
   }
 
@@ -103,6 +132,24 @@ export function HostList({
               clear
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => void copyAll()}
+            disabled={filtered.length === 0}
+            title={`copy all ${filtered.length.toLocaleString()} matching entries`}
+            className="font-mono text-micro uppercase tracking-widest text-muted-foreground-3 hover:text-terminal-green disabled:opacity-40 disabled:hover:text-muted-foreground-3 shrink-0"
+          >
+            copy all
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            disabled={filtered.length === 0}
+            title={`download ${filtered.length.toLocaleString()} matching entries as .txt`}
+            className="font-mono text-micro uppercase tracking-widest text-muted-foreground-3 hover:text-terminal-green disabled:opacity-40 disabled:hover:text-muted-foreground-3 shrink-0"
+          >
+            .txt
+          </button>
         </div>
       )}
 

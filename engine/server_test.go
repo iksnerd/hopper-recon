@@ -159,6 +159,7 @@ func TestHandleReady(t *testing.T) {
 }
 
 func TestHandleConfig_NoScope(t *testing.T) {
+	stubNoSubfinder(t)
 	rec := httptest.NewRecorder()
 	handleConfig(plainPolicy())(rec, httptest.NewRequest(http.MethodGet, "/config", nil))
 	if rec.Code != http.StatusOK {
@@ -175,6 +176,7 @@ func TestHandleConfig_NoScope(t *testing.T) {
 }
 
 func TestHandleConfig_HasScope(t *testing.T) {
+	stubNoSubfinder(t)
 	rec := httptest.NewRecorder()
 	handleConfig(scopedPolicy("example.com"))(rec, httptest.NewRequest(http.MethodGet, "/config", nil))
 	var body map[string]any

@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/recon/empty-state"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Cell, LabelList,
@@ -200,13 +201,17 @@ export default function DomainDetailPage() {
 
         {/* Not found */}
         {rows?.length === 0 && (
-          <div className="border border-border bg-card p-8 flex flex-col items-center gap-3 text-center">
-            <div className="text-micro text-muted-foreground">{"// NO DATA"}</div>
-            <p className="text-body text-muted-foreground-3">no completed scans found for {domain}</p>
-            <Link href="/history" className="text-body text-muted-foreground hover:text-foreground border border-border px-4 py-1.5 transition-colors duration-100 mt-2">
+          <EmptyState
+            title="NO DATA"
+            description={<>No completed scans for <span className="text-foreground break-all">{domain}</span>. Scan it from the dashboard, or pick another domain from history.</>}
+          >
+            <Link href={`/dashboard?domain=${encodeURIComponent(domain)}`} className="text-body text-terminal-green hover:text-background hover:bg-terminal-green border border-terminal-green/40 bg-card-inset px-4 py-1.5 transition-colors duration-100 tracking-widest uppercase font-bold">
+              &gt;_ SCAN {domain}
+            </Link>
+            <Link href="/history" className="text-body text-muted-foreground hover:text-foreground border border-border px-4 py-1.5 transition-colors duration-100">
               ← back to history
             </Link>
-          </div>
+          </EmptyState>
         )}
 
         {summary && (
@@ -292,6 +297,7 @@ export default function DomainDetailPage() {
                     }))}
                     maxHeight="max-h-[600px]"
                     filterPlaceholder="filter subdomains…"
+                    exportName={`subdomains-${domain}`}
                   />
                   {subdomains.sourceCounts.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-1">
@@ -319,6 +325,7 @@ export default function DomainDetailPage() {
                     }))}
                     maxHeight="max-h-[600px]"
                     filterPlaceholder="filter domains…"
+                    exportName={`domains-${domain}`}
                   />
                   {domains.sourceCounts.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-1">
@@ -507,6 +514,7 @@ export default function DomainDetailPage() {
                   rows={urls.entries.map((e, i) => ({ key: `${e.url}-${i}`, text: e.url, meta: e.source }))}
                   maxHeight="max-h-[480px]"
                   filterPlaceholder="filter urls…"
+                  exportName={`urls-${domain}`}
                 />
               </Panel>
             )}
@@ -522,6 +530,7 @@ export default function DomainDetailPage() {
                   rows={alterx.entries.map((e, i) => ({ key: `${e.word}-${i}`, text: e.word }))}
                   maxHeight="max-h-[480px]"
                   filterPlaceholder="filter candidates…"
+                  exportName={`mutation-candidates-${domain}`}
                 />
               </Panel>
             )}
@@ -543,6 +552,7 @@ export default function DomainDetailPage() {
                   }))}
                   maxHeight="max-h-[480px]"
                   filterPlaceholder="filter live hosts…"
+                  exportName={`live-mutations-${domain}`}
                 />
               </Panel>
             )}
