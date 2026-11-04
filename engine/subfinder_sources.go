@@ -73,31 +73,47 @@ func parseSubfinderSources(lines []string) (*SubfinderSources, error) {
 }
 
 var (
-	sourcesMu     sync.Mutex
-	sourcesCached *SubfinderSources
+	sourcesMu       sync.Mutex
+	sourcesCached   *SubfinderSources
+	sourcesErr      error
+	sourcesFailedAt time.Time
 )
 
+// sourcesRetryAfter is how long a failed `subfinder -ls` is remembered. /config
+// is called on page loads (the operator banner), and a broken or slow subfinder
+// would otherwise spawn a process, holding the lock for up to its 15s timeout,
+// on every request. A var so a test can shorten it.
+var sourcesRetryAfter = 30 * time.Second
+
 // loadSubfinderSources runs `subfinder -ls` once and caches the result: the
-// list is fixed for the life of the binary. Only a success is cached, so a
-// transient failure (timeout, cold start) is retried on the next request
-// instead of hiding the section until the engine restarts.
+// list is fixed for the life of the binary. A success is cached for good. A
+// failure is remembered only for sourcesRetryAfter, so a transient one
+// (timeout, cold start) recovers without an engine restart and a persistent one
+// does not cost a subprocess per request.
 func loadSubfinderSources(ctx context.Context) (*SubfinderSources, error) {
 	sourcesMu.Lock()
 	defer sourcesMu.Unlock()
 	if sourcesCached != nil {
 		return sourcesCached, nil
 	}
+	if sourcesErr != nil && time.Since(sourcesFailedAt) < sourcesRetryAfter {
+		return nil, sourcesErr
+	}
+	fail := func(err error) (*SubfinderSources, error) {
+		sourcesErr, sourcesFailedAt = err, time.Now()
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	lines, err := execJSONL(ctx, "subfinder", []string{"-ls"}, "")
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 	s, err := parseSubfinderSources(lines)
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
-	sourcesCached = s
+	sourcesCached, sourcesErr = s, nil
 	return s, nil
 }
 
@@ -200,33 +216,35 @@ func subfinderCoverageFields(ctx context.Context) map[string]any {
 		out["subfinder_sources_key_required"] = src.KeyRequired
 		out["subfinder_sources_optional_key"] = src.OptionalKey
 	}
+	if src == nil {
+		// Without the source list there is nothing to check provider names
+		// against, and the config file is a credential file: a malformed line
+		// such as "token:value" would otherwise be reported as a provider
+		// name. Names are reported only when they are known subfinder sources.
+		return out
+	}
 	providers, cfgErr := loadConfiguredProviders()
 	if cfgErr != nil {
 		slog.Warn("subfinder provider config unavailable", "err", cfgErr)
 		return out
 	}
-	if src != nil {
-		// Report only names subfinder knows as key-taking sources; a typo or a
-		// retired provider in the file adds no coverage.
-		known := []string{}
-		for _, p := range providers {
-			if src.keyed[p] {
-				known = append(known, p)
-			}
+	// Report only names subfinder knows as key-taking sources; a typo or a
+	// retired provider in the file adds no coverage.
+	known := []string{}
+	for _, p := range providers {
+		if src.keyed[p] {
+			known = append(known, p)
 		}
-		providers = known
 	}
-	out["subfinder_providers_configured"] = providers
-	if src != nil {
-		// Keyless and optional-key sources run without a key; a key-required
-		// source runs only when it has one.
-		active := src.Keyless + src.OptionalKey
-		for _, p := range providers {
-			if src.required[p] {
-				active++
-			}
+	out["subfinder_providers_configured"] = known
+	// Keyless and optional-key sources run without a key; a key-required
+	// source runs only when it has one.
+	active := src.Keyless + src.OptionalKey
+	for _, p := range known {
+		if src.required[p] {
+			active++
 		}
-		out["subfinder_sources_active"] = active
 	}
+	out["subfinder_sources_active"] = active
 	return out
 }

@@ -120,9 +120,10 @@ function SubfinderSources({ config, err }: { config: EngineConfig | null; err: b
       <p className="mt-3 pt-2 border-t border-border text-micro text-muted-foreground-3">
         To add keys, edit{" "}
         <span className="text-muted-foreground">~/.config/subfinder/provider-config.yaml</span> on the
-        host (docker compose bind-mounts that folder into the engine), then{" "}
-        <span className="text-muted-foreground">docker compose up -d --force-recreate engine</span>.
-        This page shows which providers have a key and never reads or stores the keys themselves.
+        host (docker compose bind-mounts that folder into the engine). subfinder re-reads it on
+        every scan, so a new key applies to the next one. The engine reads the file only to see
+        which providers have a key; this page receives provider names, never the keys, and cannot
+        store them.
       </p>
     </>
   )
