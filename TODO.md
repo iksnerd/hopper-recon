@@ -204,6 +204,12 @@ subfinder, dnsx, httpx, tlsx, cdncheck, urlfinder, alterx.
       rebuilt and all seven smoke-tested against `example.com` with the exact flag sets
       `tools.go` passes — no flag drift across the tlsx and cdncheck minor bumps.
 
+- [x] **subfinder bumped v2.16.0 → v2.17.0** (2026-11-04) — only subfinder; the other PD tools
+      stay put. Image rebuilt; `-d <domain> -silent -all -oJ -cs` still valid, JSONL shape
+      unchanged, `go version -m` on the builder-stage binary reports `v2.17.0`. v2.17.0 lists 54
+      sources (12 keyless, 37 key-required, 5 optional-key); `subfinder -ls` prints the names on
+      stdout and the banner with ANSI colours on stderr.
+
   > **Don't trust `<tool> -version` to check a pin.** Several PD tools hardcode a banner
   > constant that lags their own git tag — tlsx v1.3.0 self-reports `v1.2.2`, cdncheck v1.3.0
   > reports `v1.2.52`, and dnsx prints nothing parseable. The authoritative check is the module

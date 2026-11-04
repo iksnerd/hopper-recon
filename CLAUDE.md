@@ -84,6 +84,7 @@ The engine runs inside Docker. After Go changes, rebuild the image: `docker comp
 - `db_test.go` — full SQL round-trips on `:memory:` SQLite; helper `newTestDB(t)` available
 - `tools_test.go` — subprocess output stubbed via `var execJSONL = runJSONL` (swap in tests via `withExecJSONL`). `RunDnsx` runs its DMARC / DKIM / mail-policy / SPF lookups concurrently, so its tests use `withDnsStub`, which answers by what was queried (not call order) and also fakes `lookupTXT`, the resolver that follows SPF includes
 - `server_test.go` — HTTP handlers via `httptest`; tool dispatch stubbed via `var toolRunner = runTool` (swap via `withToolRunner`); policy helpers `plainPolicy()` / `scopedPolicy(domains...)` available
+- `subfinder_sources_test.go` — `-ls` and provider-config parsing and the `/config` coverage fields. Stubs `-ls` through `withExecJSONL`; `withProviderConfig(t, content)` points the engine at a fixture file (`nil` = missing) and `resetSubfinderSources(t)` clears the cached `-ls` result. Fixtures use obviously fake keys; the engine reports provider names only, so never print file content in a test failure
 - `integration_test.go` — `//go:build integration`; requires real binaries inside Docker; run with `go test -tags integration ./...`
 
 File layout:

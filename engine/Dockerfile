@@ -10,7 +10,7 @@ WORKDIR /app
 # the shipped versions are recorded. Bump deliberately: change a tag here, rebuild,
 # and check the tool's own runner in tools.go still passes valid flags (PD tools
 # rename and drop flags across minor versions).
-ARG SUBFINDER_VERSION=v2.16.0
+ARG SUBFINDER_VERSION=v2.17.0
 ARG DNSX_VERSION=v1.3.1
 ARG HTTPX_VERSION=v1.11.0
 ARG TLSX_VERSION=v1.3.0
