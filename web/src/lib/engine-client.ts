@@ -13,6 +13,17 @@ export interface EngineConfig {
   has_auth: boolean
   cooldown_s: number
   has_geo_db: boolean
+  /**
+   * subfinder source coverage. Each group is absent when the engine could not
+   * look it up — absent means unknown, never "none". Names only, no keys.
+   */
+  subfinder_sources_total?: number
+  subfinder_sources_keyless?: number
+  subfinder_sources_key_required?: number
+  subfinder_sources_optional_key?: number
+  /** keyless + optional-key + key-required sources that have a key */
+  subfinder_sources_active?: number
+  subfinder_providers_configured?: string[]
 }
 
 const baseUrl = (process.env.ENGINE_URL ?? "http://127.0.0.1:9119").replace(/\/$/, "")
