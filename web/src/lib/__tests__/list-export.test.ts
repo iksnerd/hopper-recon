@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest"
-import { filterRows, rowsToText, exportFileName } from "../list-export"
+import { afterEach, describe, it, expect, vi } from "vitest"
+import { filterRows, rowsToText, exportFileName, downloadText, REVOKE_DELAY_MS } from "../list-export"
 
 const rows = ["b.example.com", "a.example.com", "api.other.test", "C.Example.com"].map((text) => ({ text }))
 
@@ -63,5 +63,37 @@ describe("exportFileName", () => {
   })
   it("honours the extension", () => {
     expect(exportFileName("x", "csv")).toBe("x.csv")
+  })
+})
+
+describe("downloadText", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+  function stubDom(click: () => void) {
+    const a = { href: "", download: "", rel: "", click, remove: vi.fn() }
+    vi.stubGlobal("document", { createElement: vi.fn(() => a), body: { appendChild: vi.fn() } })
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {})
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:fake")
+    return { a, revoke }
+  }
+
+  it("keeps the object URL alive until the browser has started the download", () => {
+    vi.useFakeTimers()
+    const { a, revoke } = stubDom(() => {})
+    downloadText("hosts.txt", "a\nb\n")
+    expect(a.download).toBe("hosts.txt")
+    expect(a.href).toBe("blob:fake")
+    expect(revoke).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(REVOKE_DELAY_MS - 1)
+    expect(revoke).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(revoke).toHaveBeenCalledWith("blob:fake")
+  })
+
+  it("revokes at once and rethrows when the click fails", () => {
+    vi.useFakeTimers()
+    const { revoke } = stubDom(() => { throw new Error("blocked") })
+    expect(() => downloadText("hosts.txt", "a\n")).toThrow("blocked")
+    expect(revoke).toHaveBeenCalledWith("blob:fake")
   })
 })

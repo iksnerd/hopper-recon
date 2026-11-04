@@ -37,7 +37,10 @@ export function exportFileName(label: string, ext = "txt"): string {
   return `${base || "export"}.${ext}`
 }
 
-/** Saves `text` as a file through a Blob + object URL, revoking the URL once the click has been dispatched. */
+/** How long the object URL stays valid after the click. Revoking in the same tick can cancel a large download in Safari and Firefox. */
+export const REVOKE_DELAY_MS = 10_000
+
+/** Saves `text` as a file through a Blob + object URL, revoked a few seconds after the click so the browser has started reading it. */
 export function downloadText(filename: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }))
   try {
@@ -48,8 +51,9 @@ export function downloadText(filename: string, text: string): void {
     document.body.appendChild(a)
     a.click()
     a.remove()
-  } finally {
-    // The click has already handed the blob to the download; revoking now frees the memory.
-    URL.revokeObjectURL(url)
+  } catch (err) {
+    URL.revokeObjectURL(url) // nothing will read it
+    throw err
   }
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
 }
