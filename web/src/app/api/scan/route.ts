@@ -4,6 +4,7 @@ const VALID_TOOLS = [
   "passive_subdomains",
   "find_domains",
   "find_lookalikes",
+  "lookup_rdap",
   "resolve_dns",
   "fetch_tls_cert",
   "probe_http",

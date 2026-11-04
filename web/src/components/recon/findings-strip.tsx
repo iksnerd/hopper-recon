@@ -1,6 +1,7 @@
 import * as React from "react"
 import { assessCaa, assessEmailAuth } from "@/lib/email-auth"
-import type { SubdomainResult, DnsResult, TlsResult, HttpResult, LookalikesResult } from "@/lib/scan-parser"
+import type { SubdomainResult, DnsResult, TlsResult, HttpResult, LookalikesResult, RdapResult } from "@/lib/scan-parser"
+import { assessRdap } from "@/lib/rdap"
 import {
   ReconCard,
   ReconCardHeader,
@@ -13,7 +14,7 @@ type Severity = "issue" | "ok" | "info"
 
 export interface Finding {
   severity: Severity
-  source: "TLS" | "DNS" | "HTTP" | "SUBS"
+  source: "TLS" | "DNS" | "HTTP" | "SUBS" | "REG"
   message: string
   /** Longer explanation; the report shows it, the strip does not. */
   detail?: string
@@ -21,13 +22,17 @@ export interface Finding {
 
 const SENSITIVE_SUB = /^(dev|staging|test|sandbox|beta|admin|internal|jenkins|ci|stg|qa|preview)\./i
 
-export function deriveFindings({ subs, dns, tls, http, lookalikes = null }: {
+export function deriveFindings({ subs, dns, tls, http, lookalikes = null, rdap = null, now }: {
   subs: SubdomainResult | null
   dns: DnsResult | null
   tls: TlsResult | null
   http: HttpResult | null
   /** Only present once find_lookalikes has run; null means it has not, which says nothing. */
   lookalikes?: LookalikesResult | null
+  /** Registration record; null means it was not looked up, which says nothing. */
+  rdap?: RdapResult | null
+  /** For tests; defaults to the current time. */
+  now?: Date
 }): Finding[] {
   const out: Finding[] = []
 
@@ -50,6 +55,10 @@ export function deriveFindings({ subs, dns, tls, http, lookalikes = null }: {
     for (const f of [...assessEmailAuth(dns.email), ...assessCaa(dns.caa)]) {
       out.push({ severity: f.severity, source: "DNS", message: f.message, detail: f.detail })
     }
+  }
+
+  if (rdap) {
+    for (const f of assessRdap(rdap, now)) out.push({ severity: f.severity, source: "REG", message: f.message, detail: f.detail })
   }
 
   if (lookalikes) {
@@ -110,6 +119,7 @@ export function FindingsStrip(props: {
   tls: TlsResult | null
   http: HttpResult | null
   lookalikes?: LookalikesResult | null
+  rdap?: RdapResult | null
 }) {
   const findings = React.useMemo(() => deriveFindings(props), [props])
   if (findings.length === 0) return null

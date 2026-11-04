@@ -12,12 +12,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import type { ScanRow } from "@/lib/db"
 import { buildSummary, previousCompleted, rowResults, toolResults } from "@/lib/domain-summary"
-import { parseDns, parseTls, parseHttp, parseSubdomains, parseDomains, parseLookalikes, type DnsResult, type TlsResult, type HttpResult } from "@/lib/scan-parser"
+import { parseDns, parseTls, parseHttp, parseSubdomains, parseDomains, parseLookalikes, parseRdap, type DnsResult, type TlsResult, type HttpResult } from "@/lib/scan-parser"
 import { diffDns, type DnsDiff } from "@/lib/scan-diff"
 import { runFullScan, type ScanOutcome } from "@/lib/run-scans"
 import { dmarcEnforces, suggestDmarc, type EmailAuth } from "@/lib/email-auth"
 import { deriveFindings, type Finding } from "@/components/recon/findings-strip"
 import { certDaysLabel } from "@/lib/recon-display"
+import { daysLabel, daysUntil } from "@/lib/rdap"
 
 const SEVERITY_ORDER = { issue: 0, info: 1, ok: 2 } as const
 const SEVERITY_LABEL = { issue: "ISSUE", info: "NOTICE", ok: "OK" } as const
@@ -32,6 +33,7 @@ const SCAN_TOOLS: { tool: string; what: string }[] = [
   { tool: "fetch_tls_cert", what: "TLS certificate" },
   { tool: "probe_http", what: "HTTP response" },
   { tool: "passive_subdomains", what: "Subdomains from public sources" },
+  { tool: "lookup_rdap", what: "Registration at the domain's registry (RDAP): registrar, expiry, status, DNSSEC" },
   { tool: "find_domains", what: "Sibling domains: the same name under other top-level domains" },
   { tool: "find_lookalikes", what: "Lookalike domains: typos, look-alike characters and phishing words under the same suffix" },
 ]
@@ -125,7 +127,7 @@ function FullScan({ domain }: { domain: string }) {
         {running ? `Scanning ${step}…` : "Run full scan"}
       </button>
       <span className="ml-3 text-xs text-neutral-600">
-        Sends DNS, TLS and HTTP requests to {domain}, queries public sources and resolves about 200 lookalike names through public resolvers. Takes up to a minute.
+        Sends DNS, TLS and HTTP requests to {domain}, asks the registry for the registration, queries public sources and resolves about 200 lookalike names through public resolvers. Takes up to a minute.
       </span>
       {failed.length > 0 && (
         <ul className="mt-2 text-xs text-red-800">
@@ -229,6 +231,8 @@ export default function ReportPage() {
   const http: HttpResult | null = httpRaw ? parseHttp({ results: httpRaw }) : null
   const subs = subRaw ? parseSubdomains({ results: subRaw }) : null
   const domainsRaw = toolResults(summary, "find_domains")
+  const rdapRaw = toolResults(summary, "lookup_rdap")
+  const rdap = rdapRaw ? parseRdap({ results: rdapRaw }) : null
   const lookalikesRaw = toolResults(summary, "find_lookalikes")
   const lookalikes = lookalikesRaw ? parseLookalikes({ results: lookalikesRaw }) : null
   const siblings = domainsRaw ? parseDomains({ results: domainsRaw }).findings.filter((d) => d.host !== domain) : null
@@ -238,7 +242,7 @@ export default function ReportPage() {
   const prevDns: DnsResult | null = prevDnsRaw ? parseDns({ results: prevDnsRaw }) : null
   const diff = dns && prevDns ? diffDns(prevDns, dns) : null
 
-  const findings = deriveFindings({ subs, dns, tls, http, lookalikes })
+  const findings = deriveFindings({ subs, dns, tls, http, lookalikes, rdap })
     .map((f, i) => ({ f, i }))
     .sort((a, b) => SEVERITY_ORDER[a.f.severity] - SEVERITY_ORDER[b.f.severity] || a.i - b.i)
     .map(({ f }) => f)
@@ -323,6 +327,23 @@ export default function ReportPage() {
                 {dns.caa && <Row label="CAA (certificate issuers)">{dns.caa.join(", ") || "none: any certificate authority may issue"}</Row>}
                 {subs && <Row label="Subdomains found">{subs.findings.length}</Row>}
               </tbody></table>
+            </Section>
+          )}
+
+          {rdap && (
+            <Section title="Registration">
+              <table className="w-full text-sm"><tbody>
+                <Row label="Registrar">{rdap.registrar || "not published"}</Row>
+                <Row label="Registered">{rdap.registered ? rdap.registered.slice(0, 10) : "not published"}</Row>
+                <Row label="Expires">
+                  {rdap.expires ? rdap.expires.slice(0, 10) : "not published"}
+                  {(() => { const d = daysUntil(rdap.expires, new Date()); return d === null ? "" : ` (${daysLabel(d)})` })()}
+                </Row>
+                <Row label="Registry status">{rdap.status.length ? rdap.status.join(", ") : "none reported"}</Row>
+                <Row label="Name servers">{rdap.nameservers.join(", ") || "none"}</Row>
+                <Row label="DNSSEC">{rdap.dnssec ? "signed" : "not signed"}</Row>
+              </tbody></table>
+              <p className="text-xs text-neutral-600 mt-2">From the registry&apos;s RDAP service. Contact details are not read.</p>
             </Section>
           )}
 
