@@ -365,11 +365,11 @@ before editing rather than trusting them exactly.
 19 of 57 vendored `components/ui` primitives are imported anywhere. That's fine on its own,
 but several unused ones map directly onto gaps above and elsewhere in this file:
 
-- [ ] `empty` — vendored, unused, and "empty state illustrations" is already an open
+- [x] `empty` — (done 2026-11-04: history list, dashboard before any scan, history not-found) vendored, unused, and "empty state illustrations" is already an open
       follow-up below. Use the primitive rather than hand-rolling.
-- [ ] `sonner` — no toast anywhere in the app; scan errors surface only inline in their panel,
+- [x] `sonner` — (done 2026-11-04: root Toaster, hidden in print; copy/download and dashboard scan errors toast) no toast anywhere in the app; scan errors surface only inline in their panel,
       so an error on a panel scrolled off-screen is silent.
-- [ ] `progress` — scan progress is text-only (`SCANNING 4/7`).
+- [x] `progress` — (done 2026-11-04: bar in the scan pill) scan progress is text-only (`SCANNING 4/7`).
 - [ ] `pagination` / `command` / `scroll-area` — still unused. The blocker above got fixed
       with a custom filter + render cap in `HostList` instead of adopting these; a future win
       would be swapping `HostList`'s hand-rolled filter input for `command`'s combobox, but
