@@ -52,7 +52,7 @@ const HUGE_HOSTS = Number(process.env.HUGE_HOSTS ?? 25000)
 const TOOLS = [
   "passive_subdomains", "resolve_dns", "fetch_tls_cert", "probe_http",
   "check_cdn", "find_urls", "expand_subdomains", "find_domains",
-  "resolve_mutations", "find_lookalikes",
+  "resolve_mutations", "find_lookalikes", "lookup_rdap",
 ]
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -108,6 +108,22 @@ function synthesise(tool, target) {
     case "find_domains":
       return ["com", "io", "dev", "net", "org", "co", "app"]
         .map((tld) => ({ host: `${target.split(".")[0]}.${tld}`, sources: ["dnsx"] }))
+    case "lookup_rdap": {
+      // "weak.test" is a registration about to lapse: 20 days left, no transfer
+      // lock, no DNSSEC. Every other target is healthy. Same shape as the
+      // engine's RdapResult (no contact details).
+      const weak = target === "weak.test"
+      const day = 864e5
+      return [{
+        domain: target, registrar: "Mock Registrar, Inc.",
+        registered: new Date(Date.now() - 900 * day).toISOString(),
+        expires: new Date(Date.now() + (weak ? 20 : 400) * day).toISOString(),
+        last_changed: new Date(Date.now() - 30 * day).toISOString(),
+        status: weak ? ["active"] : ["client delete prohibited", "client transfer prohibited", "client update prohibited"],
+        nameservers: [`ns1.${target}`, `ns2.${target}`],
+        dnssec: !weak, server: "https://rdap.mock.test/",
+      }]
+    }
     case "find_lookalikes": {
       // A mail-capable lookalike first (that is what the engine sorts to the
       // top), then a web-only one. "weak.test" has none of its own to make

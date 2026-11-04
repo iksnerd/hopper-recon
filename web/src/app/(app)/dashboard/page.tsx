@@ -12,8 +12,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDomains, parseLookalikes, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
-  type SubdomainResult, type DomainsResult, type LookalikesResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
+  parseSubdomains, parseDomains, parseLookalikes, parseRdap, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DomainsResult, type LookalikesResult, type RdapResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
@@ -36,6 +36,8 @@ import { CopyableText } from "@/components/ui/copyable-text"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
 import { LookalikeList } from "@/components/recon/lookalike-list"
+import { RegistrationPanel } from "@/components/recon/registration-panel"
+import { daysLabel, daysUntil } from "@/lib/rdap"
 import { HostList } from "@/components/recon/host-list"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { Badge } from "@/components/ui/badge"
@@ -48,6 +50,7 @@ import { emailBadges, type EmailBadge } from "@/lib/email-auth"
 const TOOLS = [
   { id: "passive_subdomains", label: "SUBDOMAINS" },
   { id: "find_domains",       label: "DOMAINS" },
+  { id: "lookup_rdap",        label: "REGISTRATION" },
   { id: "resolve_dns",        label: "DNS" },
   { id: "fetch_tls_cert",     label: "TLS" },
   { id: "probe_http",         label: "HTTP" },
@@ -66,6 +69,7 @@ interface ScanState {
   durations: Partial<Record<ToolId, number>>
   subdomains: SubdomainResult | null
   domains: DomainsResult | null
+  rdap: RdapResult | null
   dns: DnsResult | null
   tls: TlsResult | null
   http: HttpResult | null
@@ -85,6 +89,7 @@ interface ScanState {
 const EMPTY_STATES: Record<ToolId, ToolState> = {
   passive_subdomains: "loading",
   find_domains: "loading",
+  lookup_rdap: "loading",
   resolve_dns: "loading",
   fetch_tls_cert: "loading",
   probe_http: "loading",
@@ -105,6 +110,10 @@ function tabSuffix(scan: ScanState, id: ToolId, elapsedTick: number): string {
   // done — show inline data
   if (id === "passive_subdomains" && scan.subdomains) return ` [${scan.subdomains.findings.length}]`
   if (id === "find_domains"       && scan.domains)    return ` [${scan.domains.findings.length}]`
+  if (id === "lookup_rdap"        && scan.rdap) {
+    const d = daysUntil(scan.rdap.expires, new Date())
+    return d === null ? "" : ` [${daysLabel(d)}]`
+  }
   if (id === "resolve_dns"        && scan.dns)        return ` [${scan.dns.a.length} IP${scan.dns.a.length === 1 ? "" : "s"}]`
   if (id === "fetch_tls_cert"     && scan.tls)        return ` [${scan.tls.daysLeft}d]`
   if (id === "probe_http"         && scan.http)       return ` [${scan.http.status_code}]`
@@ -217,9 +226,9 @@ function DashboardInner() {
     const initial: ScanState = {
       target,
       states: { ...EMPTY_STATES },
-      startedAt: { passive_subdomains: t0, find_domains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
+      startedAt: { passive_subdomains: t0, find_domains: t0, lookup_rdap: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
       durations: {},
-      subdomains: null, domains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null,
+      subdomains: null, domains: null, rdap: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null,
       resolvedMuts: null, resolveMutState: "idle", resolveMutError: null,
       lookalikes: null, lookalikesState: "idle", lookalikesError: null, errors: {},
     }
@@ -240,6 +249,7 @@ function DashboardInner() {
               durations: { ...prev.durations, [tool]: dur },
               ...(tool === "passive_subdomains" ? { subdomains: parseSubdomains(data) } : {}),
               ...(tool === "find_domains"       ? { domains: parseDomains(data) }       : {}),
+              ...(tool === "lookup_rdap"        ? { rdap: parseRdap(data) }             : {}),
               ...(tool === "resolve_dns"        ? { dns: parseDns(data) }               : {}),
               ...(tool === "fetch_tls_cert"     ? { tls: parseTls(data) }               : {}),
               ...(tool === "probe_http"         ? { http: parseHttp(data) }             : {}),
@@ -459,6 +469,7 @@ function DashboardInner() {
                 tls={scan.tls}
                 http={scan.http}
                 lookalikes={scan.lookalikes}
+                rdap={scan.rdap}
               />
             )}
 
@@ -628,6 +639,13 @@ function DashboardInner() {
                     )}
                   </Panel>
                 )}
+              </div>
+
+              {/* Registration (RDAP) */}
+              <div>
+                <ToolPanel label="// REGISTRATION" state={scan.states.lookup_rdap} error={scan.errors.lookup_rdap}>
+                  {scan.rdap && <RegistrationPanel rdap={scan.rdap} />}
+                </ToolPanel>
               </div>
 
               {/* DNS */}

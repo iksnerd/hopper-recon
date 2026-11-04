@@ -37,6 +37,7 @@ const WEB: Credit[] = [
 ]
 
 const DATA: Credit[] = [
+  { name: "IANA RDAP bootstrap", url: "https://data.iana.org/rdap/dns.json", note: "which registry's RDAP server answers for a TLD (RFC 9224) — the registration lookup asks it, then the registry" },
   { name: "MaxMind GeoLite2", url: "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data", note: "free ip → country database — bundled at runtime, license requires attribution" },
 ]
 
