@@ -49,6 +49,12 @@ func runTool(ctx context.Context, tool, target string) ([]any, error) {
 			out[i] = f
 		}
 		return out, nil
+	case "lookup_rdap":
+		res, rerr := RunRdap(ctx, target)
+		if rerr != nil {
+			return nil, rerr
+		}
+		return []any{res}, nil
 	case "find_lookalikes":
 		findings, ferr := RunLookalikes(ctx, target)
 		if ferr != nil {
