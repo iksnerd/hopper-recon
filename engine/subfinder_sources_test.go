@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // All key values below are obviously fake. Failure messages print provider
@@ -18,14 +19,14 @@ import (
 // resetSubfinderSources clears the -ls cache so a test starts cold.
 func resetSubfinderSources(t *testing.T) {
 	t.Helper()
-	sourcesMu.Lock()
-	sourcesCached = nil
-	sourcesMu.Unlock()
-	t.Cleanup(func() {
+	clear := func() {
 		sourcesMu.Lock()
-		sourcesCached = nil
+		sourcesCached, sourcesErr, sourcesFailedAt = nil, nil, time.Time{}
 		sourcesMu.Unlock()
-	})
+	}
+	clear()
+	orig := sourcesRetryAfter
+	t.Cleanup(func() { clear(); sourcesRetryAfter = orig })
 }
 
 // withProviderConfig points the engine at a fixture config; content == nil
@@ -197,9 +198,49 @@ func TestHandleConfig_SourceListFailureOmitsFields(t *testing.T) {
 			t.Errorf("%s present after a failed -ls; a failure must omit it", k)
 		}
 	}
-	// The independent config lookup still reports.
-	if !reflect.DeepEqual(body["subfinder_providers_configured"], []any{"shodan"}) {
-		t.Errorf("providers = %v, want [shodan]", body["subfinder_providers_configured"])
+	// Names are only reported against a known source list: with no list, a
+	// malformed line in a credential file could surface as a "provider name".
+	if _, ok := body["subfinder_providers_configured"]; ok {
+		t.Errorf("providers reported without a source list to check them against: %v", body["subfinder_providers_configured"])
+	}
+}
+
+func TestHandleConfig_UnvalidatedNamesNeverReported(t *testing.T) {
+	resetSubfinderSources(t)
+	withExecJSONL(t, [][]string{nil}, []error{errors.New("subfinder: not found")})
+	// A stray top-level "name:value" line: as a name it would look like a token.
+	withProviderConfig(t, strp("FAKE-TOKEN-9:FAKE-VALUE-9\nshodan:\n  - FAKE-KEY-1\n"))
+	raw, err := json.Marshal(configBody(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "FAKE-TOKEN-9") || strings.Contains(string(raw), "FAKE-VALUE-9") {
+		t.Error("an unvalidated config token appeared in /config")
+	}
+}
+
+func TestSubfinderSources_FailureIsRememberedBriefly(t *testing.T) {
+	resetSubfinderSources(t)
+	sourcesRetryAfter = time.Hour
+	// One stubbed call: a second -ls inside the window would be an unexpected call.
+	withExecJSONL(t, [][]string{nil}, []error{errors.New("subfinder: not found")})
+	withProviderConfig(t, strp("shodan:\n  - FAKE-KEY-1\n"))
+	configBody(t)
+	configBody(t)
+}
+
+func TestSubfinderSources_RetriesAfterTheWindow(t *testing.T) {
+	resetSubfinderSources(t)
+	sourcesRetryAfter = 0
+	withExecJSONL(t,
+		[][]string{nil, strings.Split(lsFixture, "\n")},
+		[]error{errors.New("subfinder: timeout"), nil})
+	withProviderConfig(t, strp("shodan:\n  - FAKE-KEY-1\n"))
+	if _, ok := configBody(t)["subfinder_sources_total"]; ok {
+		t.Error("first call failed; total must be omitted")
+	}
+	if configBody(t)["subfinder_sources_total"] == nil {
+		t.Error("second call should have retried -ls and reported the total")
 	}
 }
 
