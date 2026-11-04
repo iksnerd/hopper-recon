@@ -5,6 +5,7 @@ import pkg from "../../package.json"
 const CAPABILITIES = [
   { label: "SUBDOMAINS", tool: "passive_subdomains", desc: "osint enumeration via subfinder" },
   { label: "DOMAINS",    tool: "find_domains",       desc: "sibling tld discovery via tldfinder" },
+  { label: "LOOKALIKES", tool: "find_lookalikes",   desc: "typo / look-alike domains with mail records via dnsx (on demand)" },
   { label: "DNS",        tool: "resolve_dns",        desc: "a/aaaa/cname/mx/txt records via dnsx" },
   { label: "TLS",        tool: "fetch_tls_cert",     desc: "cert · cn · sans · expiry via tlsx" },
   { label: "HTTP",       tool: "probe_http",         desc: "stack detection via httpx @ 50 rps" },

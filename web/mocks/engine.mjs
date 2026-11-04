@@ -52,7 +52,7 @@ const HUGE_HOSTS = Number(process.env.HUGE_HOSTS ?? 25000)
 const TOOLS = [
   "passive_subdomains", "resolve_dns", "fetch_tls_cert", "probe_http",
   "check_cdn", "find_urls", "expand_subdomains", "find_domains",
-  "resolve_mutations",
+  "resolve_mutations", "find_lookalikes",
 ]
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -102,6 +102,19 @@ function synthesise(tool, target) {
     case "find_domains":
       return ["com", "io", "dev", "net", "org", "co", "app"]
         .map((tld) => ({ host: `${target.split(".")[0]}.${tld}`, sources: ["dnsx"] }))
+    case "find_lookalikes": {
+      // A mail-capable lookalike first (that is what the engine sorts to the
+      // top), then a web-only one. "weak.test" has none of its own to make
+      // the empty state reachable via "clean.test".
+      if (target === "clean.test") return []
+      const label = target.split(".")[0]
+      const suffix = target.split(".").slice(1).join(".")
+      return [
+        { host: `${label.slice(0, -1)}.${suffix}`, kind: "omission", a: [synthIP(rng)], mx: [`10 mail.${label.slice(0, -1)}.${suffix}`] },
+        { host: `${label}-login.${suffix}`, kind: "keyword", a: [synthIP(rng)] },
+        { host: `${label.replace("o", "0")}.${suffix}`, kind: "homoglyph", a: [synthIP(rng)] },
+      ]
+    }
     case "resolve_dns": {
       const a = [synthIP(rng), synthIP(rng)]
       // "weak.test" is the badly configured mail domain: monitor-only DMARC,

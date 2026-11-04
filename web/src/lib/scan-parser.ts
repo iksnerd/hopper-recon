@@ -420,6 +420,32 @@ export interface ResolvedMutResult {
   entries: ResolvedMutEntry[]
 }
 
+export interface LookalikeEntry {
+  host: string
+  /** How the name differs from the scanned one: omission, duplication, transposition, keyboard, homoglyph, hyphen, vowel, keyword. */
+  kind: string
+  a: string[]
+  /** MX records: a lookalike that can receive or send mail is a ready-made phishing sender. */
+  mx: string[]
+}
+
+export interface LookalikesResult {
+  entries: LookalikeEntry[]
+  /** How many of the entries have MX records. */
+  withMail: number
+}
+
+// parseLookalikes reads find_lookalikes results: registered domains that look
+// like the scanned one, mail-capable ones first (the engine sorts them).
+export function parseLookalikes(apiResult: unknown): LookalikesResult {
+  const raw = apiResult as { results: Array<{ host?: string; kind?: string; a?: string[]; mx?: string[] }> }
+  const entries: LookalikeEntry[] = []
+  for (const r of raw?.results ?? []) {
+    if (r.host) entries.push({ host: r.host, kind: r.kind ?? "", a: r.a ?? [], mx: r.mx ?? [] })
+  }
+  return { entries, withMail: entries.filter((e) => e.mx.length > 0).length }
+}
+
 // parseMutationResolve converts the resolve_mutations scan results into a flat
 // list of hosts that resolved, each with their A records.
 export function parseMutationResolve(apiResult: unknown): ResolvedMutResult {

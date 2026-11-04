@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import type { ScanRow } from "@/lib/db"
 import { buildSummary, previousCompleted, rowResults, toolResults } from "@/lib/domain-summary"
-import { parseDns, parseTls, parseHttp, parseSubdomains, parseDomains, type DnsResult, type TlsResult, type HttpResult } from "@/lib/scan-parser"
+import { parseDns, parseTls, parseHttp, parseSubdomains, parseDomains, parseLookalikes, type DnsResult, type TlsResult, type HttpResult } from "@/lib/scan-parser"
 import { diffDns, type DnsDiff } from "@/lib/scan-diff"
 import { runFullScan, type ScanOutcome } from "@/lib/run-scans"
 import { dmarcEnforces, suggestDmarc, type EmailAuth } from "@/lib/email-auth"
@@ -33,6 +33,7 @@ const SCAN_TOOLS: { tool: string; what: string }[] = [
   { tool: "probe_http", what: "HTTP response" },
   { tool: "passive_subdomains", what: "Subdomains from public sources" },
   { tool: "find_domains", what: "Sibling domains: the same name under other top-level domains" },
+  { tool: "find_lookalikes", what: "Lookalike domains: typos, look-alike characters and phishing words under the same suffix" },
 ]
 
 function fmt(ts: string | undefined) {
@@ -124,7 +125,7 @@ function FullScan({ domain }: { domain: string }) {
         {running ? `Scanning ${step}…` : "Run full scan"}
       </button>
       <span className="ml-3 text-xs text-neutral-600">
-        Sends DNS, TLS and HTTP requests to {domain} and queries public sources. Takes up to a minute.
+        Sends DNS, TLS and HTTP requests to {domain}, queries public sources and resolves about 200 lookalike names through public resolvers. Takes up to a minute.
       </span>
       {failed.length > 0 && (
         <ul className="mt-2 text-xs text-red-800">
@@ -228,6 +229,8 @@ export default function ReportPage() {
   const http: HttpResult | null = httpRaw ? parseHttp({ results: httpRaw }) : null
   const subs = subRaw ? parseSubdomains({ results: subRaw }) : null
   const domainsRaw = toolResults(summary, "find_domains")
+  const lookalikesRaw = toolResults(summary, "find_lookalikes")
+  const lookalikes = lookalikesRaw ? parseLookalikes({ results: lookalikesRaw }) : null
   const siblings = domainsRaw ? parseDomains({ results: domainsRaw }).findings.filter((d) => d.host !== domain) : null
 
   const prevDnsRow = rows ? previousCompleted(rows, "resolve_dns") : null
@@ -235,7 +238,7 @@ export default function ReportPage() {
   const prevDns: DnsResult | null = prevDnsRaw ? parseDns({ results: prevDnsRaw }) : null
   const diff = dns && prevDns ? diffDns(prevDns, dns) : null
 
-  const findings = deriveFindings({ subs, dns, tls, http })
+  const findings = deriveFindings({ subs, dns, tls, http, lookalikes })
     .map((f, i) => ({ f, i }))
     .sort((a, b) => SEVERITY_ORDER[a.f.severity] - SEVERITY_ORDER[b.f.severity] || a.i - b.i)
     .map(({ f }) => f)
@@ -345,6 +348,24 @@ export default function ReportPage() {
                   {siblings.length > 40 ? `  … and ${siblings.length - 40} more` : ""}
                 </p>
               )}
+            </Section>
+          )}
+
+          {lookalikes && (
+            <Section title="Lookalike domains">
+              <p className="text-sm text-neutral-700 mb-2">
+                {lookalikes.entries.length === 0
+                  ? `No registered lookalike of ${domain} was found under the same suffix.`
+                  : `${lookalikes.entries.length} registered domain${lookalikes.entries.length === 1 ? "" : "s"} look like ${domain}; ${lookalikes.withMail} can receive mail (MX records). They are not necessarily malicious: check who registered them.`}
+              </p>
+              {lookalikes.entries.length > 0 && (
+                <table className="w-full text-sm"><tbody>
+                  {lookalikes.entries.slice(0, 40).map((e) => (
+                    <Row key={e.host} label={e.host}>{e.kind}{e.mx.length > 0 ? ", has MX" : ""}{e.a[0] ? `, ${e.a[0]}` : ""}</Row>
+                  ))}
+                </tbody></table>
+              )}
+              {lookalikes.entries.length > 40 && <p className="text-xs text-neutral-600 mt-1">… and {lookalikes.entries.length - 40} more</p>}
             </Section>
           )}
 

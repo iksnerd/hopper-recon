@@ -14,8 +14,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
-  type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
+  parseSubdomains, parseDomains, parseLookalikes, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DomainsResult, type LookalikesResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import type { ScanRow } from "@/lib/db"
 import { formatDistanceToNow } from "date-fns"
@@ -100,6 +100,7 @@ export default function DomainDetailPage() {
 
   const subRaw    = summary ? get("passive_subdomains") : null
   const domainsRaw = summary ? get("find_domains")       : null
+  const lookalikesRaw = summary ? get("find_lookalikes") : null
   const dnsRaw    = summary ? get("resolve_dns")        : null
   const tlsRaw    = summary ? get("fetch_tls_cert")     : null
   const httpRaw   = summary ? get("probe_http")         : null
@@ -110,6 +111,7 @@ export default function DomainDetailPage() {
 
   const subdomains:    SubdomainResult | null    = subRaw         ? parseSubdomains({ results: subRaw })           : null
   const domains:       DomainsResult | null      = domainsRaw     ? parseDomains({ results: domainsRaw })          : null
+  const lookalikes:    LookalikesResult | null   = lookalikesRaw  ? parseLookalikes({ results: lookalikesRaw })     : null
   const dns:           DnsResult | null          = dnsRaw         ? parseDns({ results: dnsRaw })                  : null
   const tls:           TlsResult | null          = tlsRaw         ? parseTls({ results: tlsRaw })                  : null
   const http:          HttpResult | null         = httpRaw        ? parseHttp({ results: httpRaw })                 : null
@@ -229,7 +231,7 @@ export default function DomainDetailPage() {
             )}
 
             {/* Findings strip */}
-            <FindingsStrip subs={subdomains} dns={dns} tls={tls} http={http} />
+            <FindingsStrip subs={subdomains} dns={dns} tls={tls} http={http} lookalikes={lookalikes} />
 
             {dnsDiff && prevDnsRow && (
               <ScanChanges diff={dnsDiff} since={formatDistanceToNow(new Date(prevDnsRow.started_at), { addSuffix: true })} />
@@ -321,6 +323,26 @@ export default function DomainDetailPage() {
                       ))}
                     </div>
                   )}
+                </Panel>
+              )}
+
+              {/* Lookalike domains (on-demand scan) */}
+              {lookalikes && lookalikes.entries.length > 0 && (
+                <Panel
+                  label={`// LOOKALIKES [${lookalikes.entries.length}]`}
+                  variant="inset"
+                  action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
+                >
+                  <HostList
+                    rows={lookalikes.entries.map(({ host, kind, mx }) => ({
+                      key: host,
+                      text: host,
+                      meta: `${kind}${mx.length > 0 ? " · mail" : ""}`,
+                      href: `/dashboard?domain=${encodeURIComponent(host)}`,
+                    }))}
+                    maxHeight="max-h-[600px]"
+                    filterPlaceholder="filter lookalikes…"
+                  />
                 </Panel>
               )}
 

@@ -2,7 +2,7 @@
 // /api/scan route (so the engine's policy gate and cooldown still apply).
 
 /** Order matters only for how progress reads; the scans are independent. */
-export const FULL_SCAN_TOOLS = ["resolve_dns", "fetch_tls_cert", "probe_http", "passive_subdomains", "find_domains"] as const
+export const FULL_SCAN_TOOLS = ["resolve_dns", "fetch_tls_cert", "probe_http", "passive_subdomains", "find_domains", "find_lookalikes"] as const
 
 export type ScanTool = (typeof FULL_SCAN_TOOLS)[number]
 

@@ -12,8 +12,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
-  type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
+  parseSubdomains, parseDomains, parseLookalikes, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DomainsResult, type LookalikesResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
@@ -74,6 +74,10 @@ interface ScanState {
   resolvedMuts: ResolvedMutResult | null
   resolveMutState: "idle" | "loading" | "done" | "error"
   resolveMutError: string | null
+  // On demand, like resolve_mutations: about 200 DNS queries, too heavy for every scan.
+  lookalikes: LookalikesResult | null
+  lookalikesState: "idle" | "loading" | "done" | "error"
+  lookalikesError: string | null
   errors: Partial<Record<ToolId, string>>
 }
 
@@ -155,7 +159,7 @@ function ToolStatusRow({ scan, now }: { scan: ScanState; now: number }) {
   )
 }
 
-async function runTool(tool: ToolId | "resolve_mutations", target: string) {
+async function runTool(tool: ToolId | "resolve_mutations" | "find_lookalikes", target: string) {
   const res = await fetch("/api/scan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -215,7 +219,8 @@ function DashboardInner() {
       startedAt: { passive_subdomains: t0, find_domains: t0, resolve_dns: t0, fetch_tls_cert: t0, probe_http: t0, check_cdn: t0, find_urls: t0, expand_subdomains: t0 },
       durations: {},
       subdomains: null, domains: null, dns: null, tls: null, http: null, cdn: null, urls: null, alterx: null,
-      resolvedMuts: null, resolveMutState: "idle", resolveMutError: null, errors: {},
+      resolvedMuts: null, resolveMutState: "idle", resolveMutError: null,
+      lookalikes: null, lookalikesState: "idle", lookalikesError: null, errors: {},
     }
     setScan(initial)
 
@@ -267,6 +272,18 @@ function DashboardInner() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
       setScan((prev) => prev ? { ...prev, resolveMutState: "error", resolveMutError: msg } : prev)
+    }
+  }
+
+  async function findLookalikes() {
+    if (!scan?.target) return
+    setScan((prev) => prev ? { ...prev, lookalikesState: "loading", lookalikes: null, lookalikesError: null } : prev)
+    try {
+      const data = await runTool("find_lookalikes", scan.target)
+      setScan((prev) => prev ? { ...prev, lookalikesState: "done", lookalikes: parseLookalikes(data) } : prev)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      setScan((prev) => prev ? { ...prev, lookalikesState: "error", lookalikesError: msg } : prev)
     }
   }
 
@@ -440,6 +457,7 @@ function DashboardInner() {
                 dns={scan.dns}
                 tls={scan.tls}
                 http={scan.http}
+                lookalikes={scan.lookalikes}
               />
             )}
 
@@ -571,6 +589,52 @@ function DashboardInner() {
                     </Panel>
                   )}
                 </ToolPanel>
+                {scan.states.find_domains === "done" && (
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="text-micro text-muted-foreground-3">
+                      typos, look-alike characters and phishing words under the same suffix — about 200 DNS lookups through public resolvers
+                    </p>
+                    {scan.lookalikesState === "idle" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-micro font-mono rounded-none shrink-0"
+                        onClick={() => void findLookalikes()}
+                      >
+                        find lookalikes →
+                      </Button>
+                    )}
+                    {scan.lookalikesState === "loading" && (
+                      <span className="text-micro font-mono text-muted-foreground-3 animate-pulse shrink-0">resolving…</span>
+                    )}
+                  </div>
+                )}
+                {scan.lookalikesState === "error" && scan.lookalikesError && (
+                  <p className="text-micro text-destructive mt-2 font-mono">{scan.lookalikesError}</p>
+                )}
+                {scan.lookalikesState === "done" && scan.lookalikes && (
+                  <Panel
+                    label={`// LOOKALIKE DOMAINS [${scan.lookalikes.entries.length}]`}
+                    action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
+                    className="mt-4"
+                  >
+                    {scan.lookalikes.entries.length === 0 ? (
+                      <p className="text-body text-muted-foreground py-6">
+                        no registered lookalikes found under the same suffix
+                      </p>
+                    ) : (
+                      <HostList
+                        rows={scan.lookalikes.entries.map((e) => ({
+                          key: e.host,
+                          text: e.host,
+                          meta: `${e.kind}${e.mx.length > 0 ? " · mail" : ""}`,
+                          href: `/dashboard?domain=${encodeURIComponent(e.host)}`,
+                        }))}
+                        filterPlaceholder="filter lookalikes…"
+                      />
+                    )}
+                  </Panel>
+                )}
               </div>
 
               {/* DNS */}
