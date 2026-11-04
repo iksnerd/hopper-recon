@@ -202,3 +202,12 @@
 .reveal {
   animation: reveal 0.15s linear forwards;
 }
+
+/* Toasts are screen chrome. The printable report (/report/*) is for Save-as-PDF
+   and must never carry one, whatever fired while the print dialog was open. */
+@media print {
+  [data-sonner-toaster],
+  .toaster {
+    display: none !important;
+  }
+}
