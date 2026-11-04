@@ -15,8 +15,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart"
 import {
-  parseSubdomains, parseDomains, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
-  type SubdomainResult, type DomainsResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
+  parseSubdomains, parseDomains, parseLookalikes, parseRdap, parseDns, parseTls, parseHttp, parseCdn, parseUrls, parseAlterx, parseMutationResolve,
+  type SubdomainResult, type DomainsResult, type LookalikesResult, type RdapResult, type DnsResult, type TlsResult, type HttpResult, type CdnResult, type UrlsResult, type AlterxResult, type ResolvedMutResult,
 } from "@/lib/scan-parser"
 import type { ScanRow } from "@/lib/db"
 import { formatDistanceToNow } from "date-fns"
@@ -28,6 +28,8 @@ import { HostList } from "@/components/recon/host-list"
 import { RedirectChain } from "@/components/recon/redirect-chain"
 import { ChartBoundary } from "@/components/recon/chart-boundary"
 import { FindingsStrip } from "@/components/recon/findings-strip"
+import { LookalikeList } from "@/components/recon/lookalike-list"
+import { RegistrationPanel } from "@/components/recon/registration-panel"
 import { InfoTooltip } from "@/components/recon/info-tooltip"
 import { ToolSourceLink } from "@/components/recon/tool-source-link"
 import { GeoGlobe } from "@/components/recon/geo-globe"
@@ -101,6 +103,8 @@ export default function DomainDetailPage() {
 
   const subRaw    = summary ? get("passive_subdomains") : null
   const domainsRaw = summary ? get("find_domains")       : null
+  const lookalikesRaw = summary ? get("find_lookalikes") : null
+  const rdapRaw       = summary ? get("lookup_rdap")     : null
   const dnsRaw    = summary ? get("resolve_dns")        : null
   const tlsRaw    = summary ? get("fetch_tls_cert")     : null
   const httpRaw   = summary ? get("probe_http")         : null
@@ -111,6 +115,8 @@ export default function DomainDetailPage() {
 
   const subdomains:    SubdomainResult | null    = subRaw         ? parseSubdomains({ results: subRaw })           : null
   const domains:       DomainsResult | null      = domainsRaw     ? parseDomains({ results: domainsRaw })          : null
+  const lookalikes:    LookalikesResult | null   = lookalikesRaw  ? parseLookalikes({ results: lookalikesRaw })     : null
+  const rdap:          RdapResult | null         = rdapRaw        ? parseRdap({ results: rdapRaw })                : null
   const dns:           DnsResult | null          = dnsRaw         ? parseDns({ results: dnsRaw })                  : null
   const tls:           TlsResult | null          = tlsRaw         ? parseTls({ results: tlsRaw })                  : null
   const http:          HttpResult | null         = httpRaw        ? parseHttp({ results: httpRaw })                 : null
@@ -234,7 +240,7 @@ export default function DomainDetailPage() {
             )}
 
             {/* Findings strip */}
-            <FindingsStrip subs={subdomains} dns={dns} tls={tls} http={http} />
+            <FindingsStrip subs={subdomains} dns={dns} tls={tls} http={http} lookalikes={lookalikes} rdap={rdap} />
 
             {dnsDiff && prevDnsRow && (
               <ScanChanges diff={dnsDiff} since={formatDistanceToNow(new Date(prevDnsRow.started_at), { addSuffix: true })} />
@@ -328,6 +334,20 @@ export default function DomainDetailPage() {
                       ))}
                     </div>
                   )}
+                </Panel>
+              )}
+
+              {/* Registration (RDAP) */}
+              {rdap && <RegistrationPanel rdap={rdap} variant="inset" />}
+
+              {/* Lookalike domains (on-demand scan) */}
+              {lookalikes && lookalikes.entries.length > 0 && (
+                <Panel
+                  label={`// LOOKALIKES [${lookalikes.entries.length}]`}
+                  variant="inset"
+                  action={<ToolSourceLink name="dnsx" url="https://github.com/projectdiscovery/dnsx" />}
+                >
+                  <LookalikeList entries={lookalikes.entries} />
                 </Panel>
               )}
 

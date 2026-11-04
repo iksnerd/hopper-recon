@@ -3,6 +3,7 @@ import {
   parseCdn,
   parseDns,
   parseDomains,
+  parseLookalikes,
   parseHttp,
   parseSubdomains,
   parseTls,
@@ -200,5 +201,24 @@ describe("parseUrls", () => {
       { host: "example.com", count: 2 },
       { host: "blog.example.com", count: 1 },
     ])
+  })
+})
+
+describe("parseLookalikes", () => {
+  it("keeps host, kind and records, and counts the mail-capable ones", () => {
+    const r = parseLookalikes({
+      results: [
+        { host: "exmple.com", kind: "omission", a: ["192.0.2.1"], mx: ["10 mail.exmple.com"] },
+        { host: "example-login.com", kind: "keyword", a: ["192.0.2.2"] },
+      ],
+    })
+    expect(r.entries).toHaveLength(2)
+    expect(r.entries[1]).toEqual({ host: "example-login.com", kind: "keyword", a: ["192.0.2.2"], mx: [] })
+    expect(r.withMail).toBe(1)
+  })
+  it("tolerates missing fields, entries without a host, and an empty result", () => {
+    expect(parseLookalikes({ results: [{ host: "x.com" }, { kind: "omission" }] }).entries).toEqual([{ host: "x.com", kind: "", a: [], mx: [] }])
+    expect(parseLookalikes({ results: [] })).toEqual({ entries: [], withMail: 0 })
+    expect(parseLookalikes(null)).toEqual({ entries: [], withMail: 0 })
   })
 })

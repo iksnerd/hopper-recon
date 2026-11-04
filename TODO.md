@@ -28,10 +28,12 @@ _(none)_
 - [x] `/report/<domain>`: print-to-PDF report, "Run full scan", sibling domains
 - [x] Mock engine: DMARC + new fields, `weak.test`
 
+- [x] `lookup_rdap`: registrar, expiry, transfer lock, DNSSEC via the registry's RDAP service (no key)
+
 ### Later (decisions, not fixes)
 - [ ] Move the email assessment into the Go engine so MCP clients get the verdict (today `/mcp` returns raw TXT; the logic is web TypeScript). Conflicts with keeping the core small, so decide first.
 - [ ] Server-side PDF generation (needs a headless browser dependency); today it is the browser's print dialog.
-- [ ] Typosquat detection (permutations of the domain name, resolved); `find_domains` only covers other TLDs.
+- [x] Typosquat detection: `find_lookalikes` (same suffix; other suffixes stay with `find_domains`). Not covered: non-ASCII homoglyphs (IDN), and lookalikes under other TLDs.
 
 ---
 

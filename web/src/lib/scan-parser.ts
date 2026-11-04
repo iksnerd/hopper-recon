@@ -420,6 +420,66 @@ export interface ResolvedMutResult {
   entries: ResolvedMutEntry[]
 }
 
+export interface RdapResult {
+  domain: string
+  registrar: string
+  /** ISO dates from the registry; "" when it does not publish one. */
+  registered: string
+  expires: string
+  last_changed: string
+  /** Lowercased registry status flags, e.g. "client transfer prohibited". */
+  status: string[]
+  nameservers: string[]
+  dnssec: boolean
+  /** The RDAP server that answered. */
+  server: string
+}
+
+// parseRdap reads a lookup_rdap scan: one registration record, or null when
+// there is none. Contact details are never part of it (the engine does not read them).
+export function parseRdap(apiResult: unknown): RdapResult | null {
+  const raw = apiResult as { results?: Array<Partial<RdapResult>> }
+  const r = raw?.results?.[0]
+  if (!r?.domain) return null
+  return {
+    domain: r.domain,
+    registrar: r.registrar ?? "",
+    registered: r.registered ?? "",
+    expires: r.expires ?? "",
+    last_changed: r.last_changed ?? "",
+    status: r.status ?? [],
+    nameservers: r.nameservers ?? [],
+    dnssec: r.dnssec === true,
+    server: r.server ?? "",
+  }
+}
+
+export interface LookalikeEntry {
+  host: string
+  /** How the name differs from the scanned one: omission, duplication, transposition, keyboard, homoglyph, hyphen, vowel, keyword. */
+  kind: string
+  a: string[]
+  /** MX records: a lookalike that can receive or send mail is a ready-made phishing sender. */
+  mx: string[]
+}
+
+export interface LookalikesResult {
+  entries: LookalikeEntry[]
+  /** How many of the entries have MX records. */
+  withMail: number
+}
+
+// parseLookalikes reads find_lookalikes results: registered domains that look
+// like the scanned one, mail-capable ones first (the engine sorts them).
+export function parseLookalikes(apiResult: unknown): LookalikesResult {
+  const raw = apiResult as { results: Array<{ host?: string; kind?: string; a?: string[]; mx?: string[] }> }
+  const entries: LookalikeEntry[] = []
+  for (const r of raw?.results ?? []) {
+    if (r.host) entries.push({ host: r.host, kind: r.kind ?? "", a: r.a ?? [], mx: r.mx ?? [] })
+  }
+  return { entries, withMail: entries.filter((e) => e.mx.length > 0).length }
+}
+
 // parseMutationResolve converts the resolve_mutations scan results into a flat
 // list of hosts that resolved, each with their A records.
 export function parseMutationResolve(apiResult: unknown): ResolvedMutResult {

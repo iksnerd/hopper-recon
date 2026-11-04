@@ -16,7 +16,9 @@ targets the requester does not control.
 A single full scan of one target sends roughly:
 
 - about 25 DNS queries about the target's own names: A, AAAA, CNAME, NS, MX, TXT and CAA on the apex, `_dmarc.<host>`, 12 common DKIM selectors (`<selector>._domainkey.<host>`) and the MTA-STS, TLS-RPT and BIMI names. They go through public recursive resolvers, not to the target's servers directly
+- on demand only (`find_lookalikes`, a button on the dashboard and part of the report's full scan): about 200 more DNS queries (A and MX) for permutations of the target's name, again through public resolvers; they ask about the lookalike names, not the target
 - up to 25 more TXT lookups to follow the `include:` chain of the target's SPF record, to count its DNS lookups. These ask about the *included* domains (for example a mail provider's), not the target
+- 2 HTTPS requests for the registration (`lookup_rdap`): one to IANA's RDAP bootstrap (cached for a day) and one to the TLD registry's own RDAP server, asking about the domain name. Neither goes to the target
 - 1 TLS handshake (cert fetch via `tlsx`)
 - 1 HTTP GET (probe via `httpx`, identified with the `hopper-recon/<version>` User-Agent at 50 req/s cap)
 - 0 packets to the target from the passive tools (`subfinder`, `urlfinder`, `cdncheck`, `lookup_geoip`) — those query third-party OSINT services or read a bundled database
